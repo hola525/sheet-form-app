@@ -101,7 +101,7 @@ export default function SimpleFormPage() {
   }
 
   return (
-    <div className="min-h-screen bg-black text-white flex items-center justify-center p-6">
+    <div className="min-h-screen bg-gray-600  text-white flex items-center justify-center p-6">
       <div className="w-full max-w-xl rounded-2xl border border-zinc-800 bg-zinc-950/40 p-6">
         <h1 className="text-xl font-semibold">Simple Dynamic Form</h1>
         <p className="mt-1 text-sm text-zinc-400">
