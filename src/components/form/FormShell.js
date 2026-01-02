@@ -1,546 +1,713 @@
 "use client";
 
-import { useMemo, useState } from "react";
-import {
-  Field,
-  FileDrop,
-  Input,
-  Pill,
-  RadioCard,
-  SectionTitle,
-  Select,
-  Textarea,
-  Toggle,
-} from "./fields";
-import { STATIC_OPTIONS, isEmail, normalizePhone } from "./utils";
+import { useEffect, useMemo, useState } from "react";
 
-const initial = {
-  fullName: "",
-  email: "",
-  phone: "",
-  department: "",
-  category: "",
-  priority: "Medium",
-  contactMethod: "Email",
-  company: "",
-  website: "",
-  budget: "",
-  dueDate: "",
-  dueTime: "",
-  quantity: 1,
-  satisfaction: 7,
-  tags: [],
-  notes: "",
-  agree: false,
-  urgentNotify: true,
-  visibility: "internal",
+const TEXT = {
+  title: "Duo0",
+  step: (n) => `Step ${n}`,
+  next: "Next",
+  back: "Back",
+  submit: "Submit",
+};
+
+// ✅ fallback options
+const OPTIONS = {
+  provinces: ["Buenos Aires", "Córdoba", "Mendoza", "Santa Fé"],
+  cities: {
+    "Buenos Aires": ["Buenos Aires City", "La Plata"],
+    "Córdoba": [
+      "Córdoba city (inside the ring road)",
+      "Córdoba city (outside the ring road)",
+      "Carlos Paz",
+      "Malagueño",
+      "Saldán",
+      "Villa Allende",
+    ],
+    "Mendoza": ["Mendoza City"],
+    "Santa Fé": ["Santa Fé City"],
+  },
+  propertyTypes: ["House", "Apartment", "Office", "Commercial", "Airbnb"],
+  durationHours: ["1", "2", "3", "4"],
+  numberCleanings: ["1", "2", "4", "8", "12"],
+  extrasCols: ["Nothing", "Basic Kit", "Hydro-lavator", "Ladder", "Extensible", "Extension", "Hose"],
+
+  // ✅ fallback service types (Google Form style)
+  serviceTypes: [
+    "Completion of Work",
+    "Pre/post move-in cleaning",
+    "Deep cleaning",
+    "Periodic cleaning",
+    "Airbnb Check in/out",
+  ],
 };
 
 export default function FormShell() {
-  const [data, setData] = useState(initial);
-  const [files, setFiles] = useState([]);
-  const [touched, setTouched] = useState({});
-  const [submitting, setSubmitting] = useState(false);
-  const [toast, setToast] = useState(null);
+  const [step, setStep] = useState(1);
 
-  const tagOptions = useMemo(
-    () => ["Insurance", "Coverage", "Invoices", "QA", "Automation", "Integration", "Bug", "Feature", "Data Fix"],
-    []
-  );
+  // Step 1
+  const [userType, setUserType] = useState(""); // "new" | "registered"
 
-  function setField(key, value) {
-    setData((p) => ({ ...p, [key]: value }));
+  // Step 2
+  const [email, setEmail] = useState("");
+  const [fullName, setFullName] = useState("");
+  const [phone, setPhone] = useState("");
+  const [action, setAction] = useState(""); // "hire" | "plans"
+
+  // Step 3 - Address
+  const [province, setProvince] = useState("");
+  const [city, setCity] = useState("");
+  const [street, setStreet] = useState("");
+  const [details, setDetails] = useState("");
+  const [propertyType, setPropertyType] = useState("");
+
+  // Step 4 - Plan
+  const [durationHours, setDurationHours] = useState("");
+  const [numberCleanings, setNumberCleanings] = useState("");
+  const [autoRenew, setAutoRenew] = useState("");
+
+  // Step 5 - Schedule + Extras grid
+  const [date, setDate] = useState("");
+  const [time, setTime] = useState("");
+  const [timeWindow, setTimeWindow] = useState("");
+  const [extras, setExtras] = useState({});
+
+  // ✅ Step 6 - Additional instructions + Service type
+  const [cleaningInstructions, setCleaningInstructions] = useState("");
+  const [favoriteDuo, setFavoriteDuo] = useState("");
+  const [serviceType, setServiceType] = useState("");
+
+  // Plans view for Registered Email
+  const [plansLoading, setPlansLoading] = useState(false);
+  const [plans, setPlans] = useState([]);
+  const [msg, setMsg] = useState("");
+  const [saving, setSaving] = useState(false);
+
+  // ✅ Config loaded from /api/duo/config
+  const [cfg, setCfg] = useState({
+    departments: [],
+    categories: [],
+    priorities: [],
+    statuses: [],
+    provinces: [],
+
+    propertyTypes: [],
+    durationHours: [],
+    numberOfCleanings: [],
+    renewPlans: [],
+    extrasCols: [],
+
+    citiesByProvince: {},
+
+    // ✅ NEW
+    serviceTypes: [],
+  });
+
+  useEffect(() => {
+    async function load() {
+      try {
+        const res = await fetch("/api/duo/config");
+        const data = await res.json();
+        if (data.ok) {
+          setCfg({
+            departments: data.departments || [],
+            categories: data.categories || [],
+            priorities: data.priorities || [],
+            statuses: data.statuses || [],
+            provinces: data.provinces || [],
+
+            propertyTypes: data.propertyTypes || [],
+            durationHours: data.durationHours || [],
+            numberOfCleanings: data.numberOfCleanings || [],
+            renewPlans: data.renewPlans || [],
+            extrasCols: data.extrasCols || [],
+
+            citiesByProvince: data.citiesByProvince || {},
+
+            // ✅ Type of service from config
+            serviceTypes: data.serviceTypes || [],
+          });
+        }
+      } catch (e) {
+        // silent fallback
+      }
+    }
+    load();
+  }, []);
+
+  // ✅ Helpers: cfg first, fallback OPTIONS
+  const provinceOptions = cfg.provinces.length ? cfg.provinces : OPTIONS.provinces;
+  const propertyTypeOptions = cfg.propertyTypes.length ? cfg.propertyTypes : OPTIONS.propertyTypes;
+  const durationOptions = cfg.durationHours.length ? cfg.durationHours : OPTIONS.durationHours;
+  const numberCleaningsOptions = cfg.numberOfCleanings.length ? cfg.numberOfCleanings : OPTIONS.numberCleanings;
+  const extrasColOptions = cfg.extrasCols.length ? cfg.extrasCols : OPTIONS.extrasCols;
+  const renewOptions = cfg.renewPlans.length ? cfg.renewPlans : ["Yes", "No"];
+
+  // ✅ dynamic dropdown for Step 6
+  const serviceTypeOptions = cfg.serviceTypes.length ? cfg.serviceTypes : OPTIONS.serviceTypes;
+
+  // ✅ City/Town dynamic (cfg first, fallback OPTIONS)
+  const cityOptions = useMemo(() => {
+    if (!province) return [];
+    const dynamic = cfg.citiesByProvince?.[province];
+    if (Array.isArray(dynamic) && dynamic.length) return dynamic;
+    return OPTIONS.cities[province] || [];
+  }, [province, cfg.citiesByProvince]);
+
+  // Extras grid rows
+  const rowKeys = useMemo(() => {
+    const n = Number(numberCleanings || 0);
+    const base = ["None"];
+    if (!n) return base;
+    const rows = Array.from({ length: Math.min(n, 12) }, (_, i) => `Cleaning ${i + 1}`);
+    return [...base, ...rows, "All cleanings"];
+  }, [numberCleanings]);
+
+  // ✅ validations
+  function canNextStep1() {
+    return userType === "new" || userType === "registered";
   }
 
-  function markTouched(key) {
-    setTouched((p) => ({ ...p, [key]: true }));
+  function canNextStep2() {
+    if (!email.trim()) return false;
+    if (userType === "new") return fullName.trim() && phone.trim();
+    if (userType === "registered") return action === "hire" || action === "plans";
+    return false;
   }
 
-  const errors = useMemo(() => {
-    const e = {};
-    if (!data.fullName.trim()) e.fullName = "Full name is required.";
-    if (!data.email.trim()) e.email = "Email is required.";
-    else if (!isEmail(data.email)) e.email = "Please enter a valid email.";
-    if (!data.department) e.department = "Please select a department.";
-    if (!data.category) e.category = "Please select a category.";
-    if (!data.agree) e.agree = "You must accept the terms to continue.";
-    if (data.website && !/^https?:\/\//i.test(data.website.trim())) {
-      e.website = "Website must start with http:// or https://";
-    }
-    if (data.budget && Number.isNaN(Number(data.budget))) {
-      e.budget = "Budget must be a number.";
-    }
-    return e;
-  }, [data]);
-
-  const canSubmit = Object.keys(errors).length === 0;
-
-  function toggleTag(tag) {
-    setData((p) => {
-      const exists = p.tags.includes(tag);
-      return { ...p, tags: exists ? p.tags.filter((t) => t !== tag) : [...p.tags, tag] };
-    });
+  function canNextStep3() {
+    return province && city && street.trim() && details.trim() && propertyType;
   }
 
-  async function onSubmit(e) {
-    e.preventDefault();
-    setTouched({
-      fullName: true,
-      email: true,
-      department: true,
-      category: true,
-      agree: true,
-      website: true,
-      budget: true,
-    });
+  function canNextStep4() {
+    return durationHours && numberCleanings && renewOptions.includes(autoRenew);
+  }
 
-    if (!canSubmit) {
-      setToast({ type: "error", message: "Please fix the highlighted fields." });
-      return;
+  function canNextStep5() {
+    if (!date || !time || !timeWindow.trim()) return false;
+    for (const r of rowKeys) {
+      if (!extras[r]) return false;
     }
+    return true;
+  }
 
-    setSubmitting(true);
-    setToast(null);
+  function canSubmitStep6() {
+    if (!cleaningInstructions.trim()) return false;
+    if (!serviceType) return false;
+    return true;
+  }
 
+  async function fetchPlans() {
+    setMsg("");
+    setPlans([]);
+    setPlansLoading(true);
     try {
-      // DEV PHASE: static submit (later we call /api/submit)
-      await new Promise((r) => setTimeout(r, 700));
-
-      setToast({ type: "success", message: "Saved (development mode). Ready to connect Sheets API next." });
-      setData(initial);
-      setFiles([]);
-      setTouched({});
-    } catch (err) {
-      setToast({ type: "error", message: "Something went wrong. Please try again." });
+      const res = await fetch(`/api/duo/plans?email=${encodeURIComponent(email.trim())}`);
+      const data = await res.json();
+      if (!res.ok || !data.ok) throw new Error(data?.error || "Failed to load plans");
+      setPlans(data.plans || []);
+    } catch (e) {
+      setMsg(e.message);
     } finally {
-      setSubmitting(false);
+      setPlansLoading(false);
     }
   }
 
-  const preview = useMemo(() => {
-    return {
-      ...data,
-      phone: normalizePhone(data.phone),
-      attachments: files.map((f) => ({ name: f.name, size: f.size })),
-    };
-  }, [data, files]);
+  async function submitAll() {
+    setMsg("");
+    setSaving(true);
+    try {
+      const payload = {
+        userType: userType === "new" ? "New" : "Registered",
+        flowAction: action === "hire" ? "Hire cleaning services" : action === "plans" ? "View Active Plans" : "",
+
+        email,
+        fullName: userType === "new" ? fullName : "",
+        phone: userType === "new" ? phone : "",
+
+        address: { province, city, street, details, propertyType },
+        plan: { durationHours, numberCleanings, autoRenew },
+        schedule: { date, time, timeWindow, extras },
+
+        // ✅ Step 6
+        additional: {
+          cleaningInstructions,
+          favoriteDuo,
+          serviceType,
+        },
+      };
+
+      const res = await fetch("/api/duo/submit", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+
+      const data = await res.json();
+      if (!res.ok || !data.ok) throw new Error(data?.error || "Submit failed");
+
+      setMsg("✅ Saved to Google Sheet!");
+      setStep(1);
+
+      // Reset
+      setUserType("");
+      setEmail("");
+      setFullName("");
+      setPhone("");
+      setAction("");
+
+      setProvince("");
+      setCity("");
+      setStreet("");
+      setDetails("");
+      setPropertyType("");
+
+      setDurationHours("");
+      setNumberCleanings("");
+      setAutoRenew("");
+
+      setDate("");
+      setTime("");
+      setTimeWindow("");
+      setExtras({});
+
+      // Step 6 reset
+      setCleaningInstructions("");
+      setFavoriteDuo("");
+      setServiceType("");
+
+      setPlans([]);
+    } catch (e) {
+      setMsg(e.message);
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  function goNext() {
+    setMsg("");
+
+    if (step === 1 && canNextStep1()) return setStep(2);
+
+    if (step === 2 && canNextStep2()) {
+      if (userType === "registered" && action === "plans") {
+        fetchPlans();
+        return;
+      }
+      return setStep(3);
+    }
+
+    if (step === 3 && canNextStep3()) return setStep(4);
+    if (step === 4 && canNextStep4()) return setStep(5);
+    if (step === 5 && canNextStep5()) return setStep(6);
+  }
+
+  function goBack() {
+    setMsg("");
+    if (step === 2) return setStep(1);
+    if (step === 3) return setStep(2);
+    if (step === 4) return setStep(3);
+    if (step === 5) return setStep(4);
+    if (step === 6) return setStep(5);
+  }
 
   return (
-    <div className="min-h-screen bg-black text-white">
-      {/* subtle background */}
-      <div className="pointer-events-none fixed inset-0 opacity-60">
-        <div className="absolute -top-40 left-1/2 h-[520px] w-[520px] -translate-x-1/2 rounded-full bg-zinc-900 blur-3xl" />
-        <div className="absolute bottom-[-180px] right-[-120px] h-[520px] w-[520px] rounded-full bg-zinc-950 blur-3xl" />
-      </div>
+    <div className="min-h-screen bg-gray-600 text-white flex items-center justify-center p-6">
+      <div className="w-full max-w-xl rounded-2xl border border-zinc-800 bg-zinc-950/40 p-6">
+        <h1 className="text-xl font-semibold">{TEXT.title}</h1>
+        <p className="mt-1 text-sm text-zinc-400">{TEXT.step(step)}</p>
 
-      <div className="relative mx-auto max-w-6xl px-4 py-10 sm:px-6">
-        {/* Header */}
-        <div className="mb-8 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
-          <div>
-            <div className="inline-flex items-center gap-2 rounded-full border border-zinc-800 bg-zinc-950/40 px-3 py-1 text-xs text-zinc-400">
-              Development UI
-              <span className="h-1 w-1 rounded-full bg-zinc-600" />
-              Monochrome Theme
-            </div>
-            <h1 className="mt-3 text-2xl font-semibold tracking-tight sm:text-3xl">
-              Professional Request Form
-            </h1>
-            <p className="mt-2 max-w-2xl text-sm text-zinc-400">
-              Clean black & white UI with validations, tags, and a live preview panel. (Static submit for now.)
-            </p>
-          </div>
-
-          <div className="flex items-center gap-2">
-            <a
-              href="/"
-              className="rounded-xl border border-zinc-800 bg-zinc-950/40 px-4 py-2 text-sm text-zinc-200 hover:border-zinc-700 transition"
-            >
-              Back
-            </a>
-            <button
-              type="button"
-              onClick={() => {
-                setData(initial);
-                setFiles([]);
-                setTouched({});
-                setToast(null);
-              }}
-              className="rounded-xl border border-zinc-800 bg-zinc-950/40 px-4 py-2 text-sm text-zinc-200 hover:border-zinc-700 transition"
-            >
-              Reset
-            </button>
-          </div>
-        </div>
-
-        {/* Toast */}
-        {toast ? (
-          <div
-            className={[
-              "mb-6 rounded-2xl border p-4 text-sm",
-              toast.type === "success"
-                ? "border-zinc-700 bg-zinc-950/40 text-zinc-200"
-                : "border-red-800/40 bg-red-950/20 text-red-200",
-            ].join(" ")}
-          >
-            <div className="flex items-center justify-between gap-4">
-              <div>{toast.message}</div>
-              <button
-                type="button"
-                onClick={() => setToast(null)}
-                className="rounded-lg border border-zinc-800 bg-zinc-950/50 px-2 py-1 text-xs text-zinc-300 hover:text-white hover:border-zinc-700 transition"
-              >
-                Close
-              </button>
-            </div>
-          </div>
+        {msg ? (
+          <div className="mt-4 rounded-xl border border-zinc-800 bg-zinc-950/50 p-3 text-sm">{msg}</div>
         ) : null}
 
-        {/* Layout */}
-        <div className="grid gap-6 lg:grid-cols-[1.2fr_0.8fr]">
-          {/* Form Card */}
-          <div className="rounded-3xl border border-zinc-800 bg-zinc-950/40 p-5 shadow-[0_0_0_1px_rgba(255,255,255,0.02)] sm:p-7">
-            <form onSubmit={onSubmit} className="space-y-10">
-              {/* Section: Identity */}
-              <div className="space-y-6">
-                <SectionTitle
-                  title="Requester Details"
-                  desc="Basic information used for follow-up and assignment."
-                />
+        {/* STEP 1 */}
+        {step === 1 && (
+          <div className="mt-6 rounded-xl border border-zinc-800 bg-black/30 p-4">
+            <label className="text-sm text-zinc-300 font-medium">Email Address *</label>
+            <div className="mt-3 space-y-2 text-sm">
+              <label className="flex items-center gap-2">
+                <input type="radio" checked={userType === "new"} onChange={() => setUserType("new")} />
+                New Email
+              </label>
+              <label className="flex items-center gap-2">
+                <input type="radio" checked={userType === "registered"} onChange={() => setUserType("registered")} />
+                Registered Email
+              </label>
+            </div>
+          </div>
+        )}
 
-                <div className="grid gap-5 sm:grid-cols-2">
-                  <Field label="Full name" required error={touched.fullName ? errors.fullName : ""}>
-                    <Input
-                      value={data.fullName}
-                      onChange={(e) => setField("fullName", e.target.value)}
-                      onBlur={() => markTouched("fullName")}
-                      placeholder="e.g., Muhammad Ibrahim"
-                      autoComplete="name"
-                    />
-                  </Field>
+        {/* STEP 2 */}
+        {step === 2 && (
+          <div className="mt-6 space-y-4">
+            <div>
+              <label className="text-sm text-zinc-300">Email *</label>
+              <input
+                className="mt-1 w-full rounded-xl border border-zinc-800 bg-black/40 px-3 py-2 text-sm outline-none focus:border-zinc-600"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                placeholder="Enter your email"
+              />
+            </div>
 
-                  <Field label="Email" required error={touched.email ? errors.email : ""}>
-                    <Input
-                      value={data.email}
-                      onChange={(e) => setField("email", e.target.value)}
-                      onBlur={() => markTouched("email")}
-                      placeholder="e.g., ibrahim@company.com"
-                      autoComplete="email"
-                    />
-                  </Field>
-
-                  <Field label="Phone" hint="Optional" error="">
-                    <Input
-                      value={data.phone}
-                      onChange={(e) => setField("phone", e.target.value)}
-                      placeholder="e.g., +92 3xx xxxxxxx"
-                      autoComplete="tel"
-                    />
-                  </Field>
-
-                  <Field label="Preferred contact method" hint="Optional" error="">
-                    <Select
-                      value={data.contactMethod}
-                      onChange={(e) => setField("contactMethod", e.target.value)}
-                    >
-                      {STATIC_OPTIONS.contactMethods.map((m) => (
-                        <option key={m} value={m}>
-                          {m}
-                        </option>
-                      ))}
-                    </Select>
-                  </Field>
+            {userType === "new" && (
+              <div className="rounded-xl border border-zinc-800 bg-black/30 p-4 space-y-4">
+                <div className="text-sm font-semibold">NEW USER</div>
+                <div>
+                  <label className="text-sm text-zinc-300">Name and Surname *</label>
+                  <input
+                    className="mt-1 w-full rounded-xl border border-zinc-800 bg-black/40 px-3 py-2 text-sm outline-none focus:border-zinc-600"
+                    value={fullName}
+                    onChange={(e) => setFullName(e.target.value)}
+                    placeholder="Your full name"
+                  />
+                </div>
+                <div>
+                  <label className="text-sm text-zinc-300">Phone *</label>
+                  <input
+                    className="mt-1 w-full rounded-xl border border-zinc-800 bg-black/40 px-3 py-2 text-sm outline-none focus:border-zinc-600"
+                    value={phone}
+                    onChange={(e) => setPhone(e.target.value)}
+                    placeholder="Your phone number"
+                  />
                 </div>
               </div>
+            )}
 
-              {/* Section: Request */}
-              <div className="space-y-6">
-                <SectionTitle
-                  title="Request Details"
-                  desc="These fields map to dropdowns from Sheets later."
-                />
+            {userType === "registered" && (
+              <div className="rounded-xl border border-zinc-800 bg-black/30 p-4 space-y-3">
+                <div className="text-sm font-semibold">EXISTING USER</div>
 
-                <div className="grid gap-5 sm:grid-cols-2">
-                  <Field label="Department" required error={touched.department ? errors.department : ""}>
-                    <Select
-                      value={data.department}
-                      onChange={(e) => setField("department", e.target.value)}
-                      onBlur={() => markTouched("department")}
-                    >
-                      <option value="">Select a department</option>
-                      {STATIC_OPTIONS.departments.map((d) => (
-                        <option key={d} value={d}>
-                          {d}
-                        </option>
-                      ))}
-                    </Select>
-                  </Field>
-
-                  <Field label="Category" required error={touched.category ? errors.category : ""}>
-                    <Select
-                      value={data.category}
-                      onChange={(e) => setField("category", e.target.value)}
-                      onBlur={() => markTouched("category")}
-                    >
-                      <option value="">Select a category</option>
-                      {STATIC_OPTIONS.categories.map((c) => (
-                        <option key={c} value={c}>
-                          {c}
-                        </option>
-                      ))}
-                    </Select>
-                  </Field>
-
-                  <Field label="Priority" hint="Default: Medium" error="">
-                    <Select value={data.priority} onChange={(e) => setField("priority", e.target.value)}>
-                      {STATIC_OPTIONS.priorities.map((p) => (
-                        <option key={p} value={p}>
-                          {p}
-                        </option>
-                      ))}
-                    </Select>
-                  </Field>
-
-                  <Field label="Visibility" hint="Who can see this?" error="">
-                    <div className="grid gap-3 sm:grid-cols-2">
-                      <RadioCard
-                        name="visibility"
-                        value="internal"
-                        checked={data.visibility === "internal"}
-                        onChange={(v) => setField("visibility", v)}
-                        title="Internal"
-                        desc="Visible to the team only."
-                      />
-                      <RadioCard
-                        name="visibility"
-                        value="client"
-                        checked={data.visibility === "client"}
-                        onChange={(v) => setField("visibility", v)}
-                        title="Client-facing"
-                        desc="Safe to share with client."
-                      />
-                    </div>
-                  </Field>
-
-                  <Field label="Company" hint="Optional" error="">
-                    <Input
-                      value={data.company}
-                      onChange={(e) => setField("company", e.target.value)}
-                      placeholder="e.g., Coastal Research"
-                    />
-                  </Field>
-
-                  <Field label="Website" hint="Optional" error={touched.website ? errors.website : ""}>
-                    <Input
-                      value={data.website}
-                      onChange={(e) => setField("website", e.target.value)}
-                      onBlur={() => markTouched("website")}
-                      placeholder="https://example.com"
-                    />
-                  </Field>
-
-                  <Field label="Estimated budget" hint="Optional" error={touched.budget ? errors.budget : ""}>
-                    <Input
-                      value={data.budget}
-                      onChange={(e) => setField("budget", e.target.value)}
-                      onBlur={() => markTouched("budget")}
-                      placeholder="e.g., 3000"
-                      inputMode="numeric"
-                    />
-                  </Field>
-
-                  <Field label="Quantity" hint="Number field" error="">
-                    <Input
-                      type="number"
-                      min={1}
-                      value={data.quantity}
-                      onChange={(e) => setField("quantity", Number(e.target.value || 1))}
-                    />
-                  </Field>
-
-                  <Field label="Preferred due date" hint="Optional" error="">
-                    <Input
-                      type="date"
-                      value={data.dueDate}
-                      onChange={(e) => setField("dueDate", e.target.value)}
-                    />
-                  </Field>
-
-                  <Field label="Preferred due time" hint="Optional" error="">
-                    <Input
-                      type="time"
-                      value={data.dueTime}
-                      onChange={(e) => setField("dueTime", e.target.value)}
-                    />
-                  </Field>
-
-                  <Field label="Satisfaction target" hint={`Current: ${data.satisfaction}/10`} error="">
-                    <input
-                      type="range"
-                      min="1"
-                      max="10"
-                      value={data.satisfaction}
-                      onChange={(e) => setField("satisfaction", Number(e.target.value))}
-                      className="w-full accent-white"
-                    />
-                    <div className="flex justify-between text-xs text-zinc-600">
-                      <span>1</span>
-                      <span>10</span>
-                    </div>
-                  </Field>
+                <label className="text-sm text-zinc-300">What action do you want to take? *</label>
+                <div className="space-y-2 text-sm">
+                  <label className="flex items-center gap-2">
+                    <input type="radio" checked={action === "hire"} onChange={() => setAction("hire")} />
+                    Hire cleaning services
+                  </label>
+                  <label className="flex items-center gap-2">
+                    <input type="radio" checked={action === "plans"} onChange={() => setAction("plans")} />
+                    View Active Plans
+                  </label>
                 </div>
 
-                {/* Tags */}
-                <div className="space-y-3">
-                  <div className="flex items-center justify-between gap-3">
-                    <div className="text-sm font-medium text-zinc-200">Tags</div>
-                    <div className="text-xs text-zinc-500">Multi-select chips</div>
+                {action === "plans" && email.trim() ? (
+                  <div className="mt-3 rounded-xl border border-zinc-800 bg-black/20 p-3">
+                    <div className="flex items-center justify-between">
+                      <div className="text-sm font-semibold">Active/Pending Plans</div>
+                      <button type="button" onClick={fetchPlans} className="text-xs underline" disabled={plansLoading}>
+                        {plansLoading ? "Loading..." : "Refresh"}
+                      </button>
+                    </div>
+
+                    {plansLoading ? (
+                      <div className="mt-2 text-sm text-zinc-400">Loading…</div>
+                    ) : plans.length === 0 ? (
+                      <div className="mt-2 text-sm text-zinc-400">No plans found for this email.</div>
+                    ) : (
+                      <ul className="mt-2 space-y-2 text-sm">
+                        {plans.map((p, idx) => (
+                          <li key={idx} className="rounded-lg border border-zinc-800 bg-black/30 p-2">
+                            <div>
+                              <b>Address:</b> {p["street/number"] || "-"}, {p["city/town"] || "-"}, {p["province"] || "-"}
+                            </div>
+                            <div>
+                              <b>Plan:</b> {p["duration hours"] || "-"}h × {p["number of cleanings"] || "-"} cleanings
+                            </div>
+                            <div>
+                              <b>Status:</b> {p["status"] || "-"}
+                            </div>
+                          </li>
+                        ))}
+                      </ul>
+                    )}
                   </div>
-
-                  <div className="flex flex-wrap gap-2">
-                    {tagOptions.map((tag) => {
-                      const active = data.tags.includes(tag);
-                      return (
-                        <button
-                          key={tag}
-                          type="button"
-                          onClick={() => toggleTag(tag)}
-                          className={[
-                            "rounded-full border px-3 py-1 text-xs transition",
-                            active
-                              ? "border-zinc-500 bg-white text-black"
-                              : "border-zinc-800 bg-zinc-950/40 text-zinc-300 hover:border-zinc-700",
-                          ].join(" ")}
-                        >
-                          {tag}
-                        </button>
-                      );
-                    })}
-                  </div>
-
-                  {data.tags.length ? (
-                    <div className="flex flex-wrap gap-2">
-                      {data.tags.map((t) => (
-                        <Pill key={t} onRemove={() => toggleTag(t)}>
-                          {t}
-                        </Pill>
-                      ))}
-                    </div>
-                  ) : (
-                    <p className="text-xs text-zinc-500">No tags selected.</p>
-                  )}
-                </div>
-
-                {/* Notes */}
-                <Field label="Notes / Description" hint="Explain clearly" error="">
-                  <Textarea
-                    value={data.notes}
-                    onChange={(e) => setField("notes", e.target.value)}
-                    placeholder="Write a short description. Include example data if needed…"
-                  />
-                </Field>
-
-                {/* Attachments (UI only) */}
-                <FileDrop onPick={setFiles} files={files} />
-              </div>
-
-              {/* Section: Preferences */}
-              <div className="space-y-6">
-                <SectionTitle
-                  title="Preferences"
-                  desc="Small UX features that make it feel premium."
-                />
-
-                <div className="grid gap-4 sm:grid-cols-2">
-                  <Toggle
-                    checked={data.urgentNotify}
-                    onChange={(v) => setField("urgentNotify", v)}
-                    label="Enable urgent notifications"
-                    desc="If priority is urgent, we can notify the team instantly (later)."
-                  />
-
-                  <Toggle
-                    checked={data.agree}
-                    onChange={(v) => {
-                      setField("agree", v);
-                      markTouched("agree");
-                    }}
-                    label="I confirm the information is correct"
-                    desc="Required for submission."
-                  />
-                </div>
-
-                {touched.agree && errors.agree ? (
-                  <p className="text-xs text-red-300">{errors.agree}</p>
                 ) : null}
               </div>
+            )}
+          </div>
+        )}
 
-              {/* Submit */}
-              <div className="flex flex-col-reverse gap-3 sm:flex-row sm:items-center sm:justify-between">
-                <div className="text-xs text-zinc-500">
-                  This is UI-only submit for now. Next step: connect to <span className="text-zinc-300">/api/config</span> and{" "}
-                  <span className="text-zinc-300">/api/submit</span>.
+        {/* STEP 3: ADDRESS */}
+        {step === 3 && (
+          <div className="mt-6 space-y-4">
+            <div className="rounded-xl border border-zinc-800 bg-black/30 p-4">
+              <div className="text-sm font-semibold">NEW ADDRESS</div>
+              <div className="mt-3 space-y-4">
+                <div>
+                  <label className="text-sm text-zinc-300">Province *</label>
+                  <select
+                    className="mt-1 w-full rounded-xl border border-zinc-800 bg-black/40 px-3 py-2 text-sm outline-none focus:border-zinc-600"
+                    value={province}
+                    onChange={(e) => {
+                      setProvince(e.target.value);
+                      setCity("");
+                    }}
+                  >
+                    <option value="">Select</option>
+                    {provinceOptions.map((p) => (
+                      <option key={p} value={p}>{p}</option>
+                    ))}
+                  </select>
                 </div>
 
-                <button
-                  type="submit"
-                  disabled={submitting}
-                  className={[
-                    "inline-flex items-center justify-center rounded-xl px-5 py-2.5 text-sm font-semibold transition",
-                    "bg-white text-black hover:bg-zinc-200",
-                    "disabled:opacity-60 disabled:cursor-not-allowed",
-                  ].join(" ")}
-                >
-                  {submitting ? "Saving…" : "Submit Request"}
-                </button>
+                <div>
+                  <label className="text-sm text-zinc-300">City/Town *</label>
+                  <select
+                    className="mt-1 w-full rounded-xl border border-zinc-800 bg-black/40 px-3 py-2 text-sm outline-none focus:border-zinc-600"
+                    value={city}
+                    onChange={(e) => setCity(e.target.value)}
+                    disabled={!province}
+                  >
+                    <option value="">{province ? "Select" : "Select province first"}</option>
+                    {cityOptions.map((c) => (
+                      <option key={c} value={c}>{c}</option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="text-sm text-zinc-300">Street/Number *</label>
+                  <input
+                    className="mt-1 w-full rounded-xl border border-zinc-800 bg-black/40 px-3 py-2 text-sm outline-none focus:border-zinc-600"
+                    value={street}
+                    onChange={(e) => setStreet(e.target.value)}
+                    placeholder="e.g. Main St 123"
+                  />
+                </div>
+
+                <div>
+                  <label className="text-sm text-zinc-300">Property details *</label>
+                  <textarea
+                    className="mt-1 w-full rounded-xl border border-zinc-800 bg-black/40 px-3 py-2 text-sm outline-none focus:border-zinc-600"
+                    rows={3}
+                    value={details}
+                    onChange={(e) => setDetails(e.target.value)}
+                    placeholder="Lot/Block/Floor/Apartment/Other"
+                  />
+                </div>
+
+                <div>
+                  <label className="text-sm text-zinc-300">Property Type *</label>
+                  <select
+                    className="mt-1 w-full rounded-xl border border-zinc-800 bg-black/40 px-3 py-2 text-sm outline-none focus:border-zinc-600"
+                    value={propertyType}
+                    onChange={(e) => setPropertyType(e.target.value)}
+                  >
+                    <option value="">Select</option>
+                    {propertyTypeOptions.map((t) => (
+                      <option key={t} value={t}>{t}</option>
+                    ))}
+                  </select>
+                </div>
               </div>
-            </form>
-          </div>
-
-          {/* Preview Card */}
-          <div className="rounded-3xl border border-zinc-800 bg-zinc-950/40 p-5 sm:p-7">
-            <div className="flex items-start justify-between gap-4">
-              <div>
-                <h2 className="text-lg font-semibold tracking-tight">Live Preview</h2>
-                <p className="mt-1 text-sm text-zinc-400">This is what we’ll send to Sheets (later).</p>
-              </div>
-
-              <span className="rounded-full border border-zinc-800 bg-zinc-950/50 px-3 py-1 text-xs text-zinc-400">
-                JSON
-              </span>
-            </div>
-
-            <div className="mt-5 rounded-2xl border border-zinc-800 bg-black/40 p-4">
-              <pre className="max-h-[520px] overflow-auto text-xs leading-relaxed text-zinc-300">
-{JSON.stringify(preview, null, 2)}
-              </pre>
-            </div>
-
-            <div className="mt-5 rounded-2xl border border-zinc-800 bg-zinc-950/30 p-4">
-              <div className="text-sm font-medium text-zinc-200">Validation status</div>
-              <div className="mt-2 text-sm">
-                {canSubmit ? (
-                  <span className="text-zinc-200">✅ Ready to submit</span>
-                ) : (
-                  <span className="text-red-200">⚠️ Missing required fields</span>
-                )}
-              </div>
-
-              {!canSubmit ? (
-                <ul className="mt-3 space-y-1 text-xs text-zinc-500">
-                  {Object.entries(errors).map(([k, v]) => (
-                    <li key={k}>
-                      <span className="text-zinc-300">{k}:</span> {v}
-                    </li>
-                  ))}
-                </ul>
-              ) : null}
             </div>
           </div>
-        </div>
+        )}
 
-        {/* Footer */}
-        <div className="mt-10 text-center text-xs text-zinc-600">
-          Monochrome UI • Tailwind • Next.js (JS) • Development phase
+        {/* STEP 4: PLAN */}
+        {step === 4 && (
+          <div className="mt-6 space-y-4">
+            <div className="rounded-xl border border-zinc-800 bg-black/30 p-4">
+              <div className="text-sm font-semibold">CLEANING PLAN</div>
+
+              <div className="mt-3 space-y-4">
+                <div>
+                  <label className="text-sm text-zinc-300">Duration of each cleaning (hours) *</label>
+                  <select
+                    className="mt-1 w-full rounded-xl border border-zinc-800 bg-black/40 px-3 py-2 text-sm outline-none focus:border-zinc-600"
+                    value={durationHours}
+                    onChange={(e) => setDurationHours(e.target.value)}
+                  >
+                    <option value="">Select</option>
+                    {durationOptions.map((h) => (
+                      <option key={h} value={h}>{h}</option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="text-sm text-zinc-300">Number of Cleanings *</label>
+                  <select
+                    className="mt-1 w-full rounded-xl border border-zinc-800 bg-black/40 px-3 py-2 text-sm outline-none focus:border-zinc-600"
+                    value={numberCleanings}
+                    onChange={(e) => {
+                      setNumberCleanings(e.target.value);
+                      setExtras({});
+                    }}
+                  >
+                    <option value="">Select</option>
+                    {numberCleaningsOptions.map((n) => (
+                      <option key={n} value={n}>{n}</option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="text-sm text-zinc-300">Auto renew when expires? *</label>
+                  <div className="mt-2 space-y-2 text-sm">
+                    {renewOptions.slice(0, 2).map((opt) => (
+                      <label key={opt} className="flex items-center gap-2">
+                        <input type="radio" checked={autoRenew === opt} onChange={() => setAutoRenew(opt)} />
+                        {opt}
+                      </label>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* STEP 5: SCHEDULE + EXTRAS */}
+        {step === 5 && (
+          <div className="mt-6 space-y-4">
+            <div className="rounded-xl border border-zinc-800 bg-black/30 p-4">
+              <div className="text-sm font-semibold">SCHEDULE YOUR CLEANING(S)</div>
+
+              <div className="mt-3 space-y-4">
+                <div>
+                  <label className="text-sm text-zinc-300">Day *</label>
+                  <input
+                    type="date"
+                    className="mt-1 w-full rounded-xl border border-zinc-800 bg-black/40 px-3 py-2 text-sm outline-none focus:border-zinc-600"
+                    value={date}
+                    onChange={(e) => setDate(e.target.value)}
+                  />
+                </div>
+
+                <div>
+                  <label className="text-sm text-zinc-300">Time *</label>
+                  <input
+                    type="time"
+                    className="mt-1 w-full rounded-xl border border-zinc-800 bg-black/40 px-3 py-2 text-sm outline-none focus:border-zinc-600"
+                    value={time}
+                    onChange={(e) => setTime(e.target.value)}
+                  />
+                </div>
+
+                <div>
+                  <label className="text-sm text-zinc-300">Time Window *</label>
+                  <textarea
+                    rows={2}
+                    className="mt-1 w-full rounded-xl border border-zinc-800 bg-black/40 px-3 py-2 text-sm outline-none focus:border-zinc-600"
+                    value={timeWindow}
+                    onChange={(e) => setTimeWindow(e.target.value)}
+                    placeholder="Best times if we can’t arrive exactly at the indicated time"
+                  />
+                </div>
+
+                <div className="rounded-xl border border-zinc-800 bg-black/20 p-3">
+                  <div className="text-sm font-semibold">Extras (select one per row) *</div>
+
+                  <div className="mt-3 space-y-3">
+                    {rowKeys.map((rk) => (
+                      <div key={rk} className="flex items-center gap-3">
+                        <div className="w-32 text-sm text-zinc-300">{rk}</div>
+                        <select
+                          className="flex-1 rounded-xl border border-zinc-800 bg-black/40 px-3 py-2 text-sm outline-none focus:border-zinc-600"
+                          value={extras[rk] || ""}
+                          onChange={(e) => setExtras((prev) => ({ ...prev, [rk]: e.target.value }))}
+                        >
+                          <option value="">Select</option>
+                          {extrasColOptions.map((c) => (
+                            <option key={c} value={c}>{c}</option>
+                          ))}
+                        </select>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* ✅ STEP 6 */}
+        {step === 6 && (
+          <div className="mt-6 space-y-4">
+            <div className="rounded-xl border border-zinc-800 bg-black/30 p-4">
+              <div className="text-sm font-semibold">ADDITIONAL INSTRUCTIONS</div>
+              <p className="mt-2 text-sm text-zinc-400">
+                Tell us any details that are important for the Duo0 who will be performing the cleaning.
+              </p>
+
+              <div className="mt-4 space-y-4">
+                <div>
+                  <label className="text-sm text-zinc-300">Cleaning instructions *</label>
+                  <textarea
+                    className="mt-1 w-full rounded-xl border border-zinc-800 bg-black/40 px-3 py-2 text-sm outline-none focus:border-zinc-600"
+                    rows={3}
+                    value={cleaningInstructions}
+                    onChange={(e) => setCleaningInstructions(e.target.value)}
+                    placeholder="Write any important notes…"
+                  />
+                </div>
+
+                <div>
+                  <label className="text-sm text-zinc-300">Favorite Duo0</label>
+                  <input
+                    className="mt-1 w-full rounded-xl border border-zinc-800 bg-black/40 px-3 py-2 text-sm outline-none focus:border-zinc-600"
+                    value={favoriteDuo}
+                    onChange={(e) => setFavoriteDuo(e.target.value)}
+                    placeholder="Optional"
+                  />
+                </div>
+
+                <div>
+                  <label className="text-sm text-zinc-300">Type of service to be performed *</label>
+                  <select
+                    className="mt-1 w-full rounded-xl border border-zinc-800 bg-black/40 px-3 py-2 text-sm outline-none focus:border-zinc-600"
+                    value={serviceType}
+                    onChange={(e) => setServiceType(e.target.value)}
+                  >
+                    <option value="">Choose</option>
+                    {serviceTypeOptions.map((s) => (
+                      <option key={s} value={s}>{s}</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Footer buttons */}
+        <div className="mt-6 flex gap-3">
+          <button
+            type="button"
+            onClick={goBack}
+            disabled={step === 1}
+            className="rounded-xl border border-zinc-700 px-4 py-2 text-sm disabled:opacity-50"
+          >
+            {TEXT.back}
+          </button>
+
+          {step < 6 ? (
+            <button
+              type="button"
+              onClick={goNext}
+              disabled={
+                (step === 1 && !canNextStep1()) ||
+                (step === 2 && !canNextStep2()) ||
+                (step === 3 && !canNextStep3()) ||
+                (step === 4 && !canNextStep4()) ||
+                (step === 5 && !canNextStep5())
+              }
+              className="ml-auto rounded-xl bg-white px-4 py-2 text-sm font-semibold text-black hover:bg-zinc-200 disabled:opacity-60"
+            >
+              {TEXT.next}
+            </button>
+          ) : (
+            <button
+              type="button"
+              onClick={submitAll}
+              disabled={!canSubmitStep6() || saving}
+              className="ml-auto rounded-xl bg-white px-4 py-2 text-sm font-semibold text-black hover:bg-zinc-200 disabled:opacity-60"
+            >
+              {saving ? "Saving..." : TEXT.submit}
+            </button>
+          )}
         </div>
       </div>
     </div>
