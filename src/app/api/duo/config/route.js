@@ -8,7 +8,7 @@ function norm(s) {
 }
 
 function uniq(arr) {
-  return Array.from(new Set(arr.map(v => String(v || "").trim()).filter(Boolean)));
+  return Array.from(new Set(arr.map((v) => String(v || "").trim()).filter(Boolean)));
 }
 
 // small helper to support multiple header names (so you don’t get stuck)
@@ -18,6 +18,21 @@ function getColAny(headers, names) {
     if (idx >= 0) return idx;
   }
   return -1;
+}
+
+/**
+ * ✅ NEW: Split a cell like:
+ * "Bue city,Bue city 2, Bue city 3"
+ * into ["Bue city", "Bue city 2", "Bue city 3"]
+ */
+function splitCitiesCell(value) {
+  const raw = String(value || "").trim();
+  if (!raw) return [];
+
+  return raw
+    .split(",")
+    .map((x) => x.trim())
+    .filter(Boolean);
 }
 
 export async function GET() {
@@ -55,15 +70,16 @@ export async function GET() {
     const idxNumberOfCleanings = getCol("NumberOfCleanings");
     const idxRenewPlan = getCol("RenewPlan");
 
-    // City/Town
+    // City/Town (your sheet column is "CityTown")
     const idxCityTown = getColAny(headers, ["City/Town", "CityTown", "City"]);
 
-    // ✅ NEW: Service Type dropdown
+    // ✅ Service Type dropdown
     const idxServiceType = getColAny(headers, [
       "ServiceType",
       "Service Type",
       "Type of service to be performed",
       "TypeOfService",
+      "Type of service",
     ]);
 
     const categories = [];
@@ -79,11 +95,10 @@ export async function GET() {
     const renewPlans = [];
     const serviceTypes = [];
 
-    const citiesByProvince = {};
+    const citiesByProvince = {}; // { "Province": ["City 1", ...] }
 
     for (const r of rows) {
       const prov = idxProvinces >= 0 ? String(r[idxProvinces] || "").trim() : "";
-      const city = idxCityTown >= 0 ? String(r[idxCityTown] || "").trim() : "";
 
       if (idxCategory >= 0) categories.push(r[idxCategory]);
       if (idxDepartment >= 0) departments.push(r[idxDepartment]);
@@ -99,13 +114,17 @@ export async function GET() {
 
       if (idxServiceType >= 0) serviceTypes.push(r[idxServiceType]);
 
-      // province -> cities mapping
-      if (prov && city) {
-        if (!citiesByProvince[prov]) citiesByProvince[prov] = [];
-        citiesByProvince[prov].push(city);
+      // ✅ UPDATED: province -> cities mapping (support comma-separated cities in one cell)
+      if (prov && idxCityTown >= 0) {
+        const cities = splitCitiesCell(r[idxCityTown]);
+        if (cities.length) {
+          if (!citiesByProvince[prov]) citiesByProvince[prov] = [];
+          citiesByProvince[prov].push(...cities);
+        }
       }
     }
 
+    // ✅ make each province city list unique + clean
     Object.keys(citiesByProvince).forEach((p) => {
       citiesByProvince[p] = uniq(citiesByProvince[p]);
     });
@@ -127,7 +146,6 @@ export async function GET() {
 
       citiesByProvince,
 
-      // ✅ new dropdown options
       serviceTypes: uniq(serviceTypes),
     });
   } catch (e) {
