@@ -19,7 +19,6 @@ export async function GET(req) {
     const sheets = getSheetsClient();
     const spreadsheetId = process.env.SPREADSHEET_ID;
 
-    // Read all rows
     const res = await sheets.spreadsheets.values.get({
       spreadsheetId,
       range: `${SHEET}!A1:ZZ`,
@@ -31,20 +30,20 @@ export async function GET(req) {
     const headers = values[0].map(norm);
     const rows = values.slice(1);
 
-    const idxEmail = headers.indexOf("email");
-    const idxStatus = headers.indexOf("status");
-
     const plans = rows
-      .map((r) => {
+      .map((r, i) => {
         const obj = {};
-        headers.forEach((h, i) => (obj[h] = r[i] ?? ""));
+        headers.forEach((h, idx) => (obj[h] = r[idx] ?? ""));
+
+        // ✅ IMPORTANT: Keep sheet row number so we can update later
+        // Sheet row starts at 2 (because row 1 is headers)
+        obj._rowNumber = i + 2;
+
         return obj;
       })
       .filter((r) => {
         const e = String(r["email"] || "").toLowerCase();
         const status = String(r["status"] || "").toLowerCase();
-
-        // Keep simple: show active + pending
         return e === email && (status === "active" || status === "pending");
       })
       .slice(-20)

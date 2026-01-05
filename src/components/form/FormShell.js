@@ -63,6 +63,10 @@ export default function FormShell() {
   const [phone, setPhone] = useState("");
   const [action, setAction] = useState(""); // "hire" | "plans"
 
+  // ✅ NEW (Registered plans flow)
+  const [selectedPlanRow, setSelectedPlanRow] = useState(""); // sheet row number as string
+  const [modifyAction, setModifyAction] = useState(""); // address | plan | schedule | additional
+
   // Step 3 - Address
   const [province, setProvince] = useState("");
   const [city, setCity] = useState("");
@@ -113,7 +117,6 @@ export default function FormShell() {
   });
 
   useEffect(() => {
-    // ✅ Load config once on mount
     async function load() {
       try {
         const res = await fetch("/api/duo/config");
@@ -138,7 +141,7 @@ export default function FormShell() {
           });
         }
       } catch (e) {
-        // ✅ Silent fallback: OPTIONS will still work
+        // silent fallback
       }
     }
 
@@ -174,7 +177,7 @@ export default function FormShell() {
   }, [numberCleanings]);
 
   // =========================================================
-  // VALIDATION (no behavior change)
+  // VALIDATION (keep behavior)
   // =========================================================
   function canNextStep1() {
     return userType === "new" || userType === "registered";
@@ -182,8 +185,19 @@ export default function FormShell() {
 
   function canNextStep2() {
     if (!email.trim()) return false;
+
     if (userType === "new") return fullName.trim() && phone.trim();
-    if (userType === "registered") return action === "hire" || action === "plans";
+
+    if (userType === "registered") {
+      // ✅ hire flow stays same
+      if (action === "hire") return true;
+
+      // ✅ plans flow now requires plan + modifyAction
+      if (action === "plans") return !!selectedPlanRow && !!modifyAction;
+
+      return false;
+    }
+
     return false;
   }
 
@@ -204,7 +218,6 @@ export default function FormShell() {
   }
 
   function canSubmitStep6() {
-    // ✅ Keep required: cleaningInstructions + serviceType
     if (!cleaningInstructions.trim()) return false;
     if (!serviceType) return false;
     return true;
@@ -230,12 +243,119 @@ export default function FormShell() {
     }
   }
 
+  // ✅ Prefill steps from selected plan row data (Registered → plans flow)
+  function prefillFromSelectedPlan_() {
+    const rowNum = Number(selectedPlanRow || 0);
+    if (!rowNum) return;
+
+    const plan = plans.find((p) => Number(p._rowNumber) === rowNum);
+    if (!plan) return;
+
+    // Address
+    setProvince(plan["province"] || "");
+    setCity(plan["city/town"] || "");
+    setStreet(plan["street/number"] || "");
+    setDetails(plan["property details"] || "");
+    setPropertyType(plan["property type"] || "");
+
+    // Plan
+    setDurationHours(plan["duration hours"] || "");
+    setNumberCleanings(plan["number of cleanings"] || "");
+    setAutoRenew(plan["auto renew"] || "");
+
+    // Schedule
+    setDate(plan["schedule date"] || "");
+    setTime(plan["schedule time"] || "");
+    setTimeWindow(plan["time window"] || "");
+
+    // Extras JSON
+    try {
+      const ex = plan["extras (json)"] ? JSON.parse(plan["extras (json)"]) : {};
+      setExtras(ex && typeof ex === "object" ? ex : {});
+    } catch (e) {
+      setExtras({});
+    }
+
+    // Additional
+    setCleaningInstructions(plan["cleaning instructions"] || "");
+    setFavoriteDuo(plan["favorite duo0"] || "");
+    setServiceType(plan["type of service to be performed"] || "");
+  }
+
+  // ✅ Update existing row (Registered plans modify flow)
+  async function updateExistingPlan(updateMode) {
+    setMsg("");
+    setSaving(true);
+
+    try {
+      const payload = {
+        // keep same shape
+        address: { province, city, street, details, propertyType },
+        plan: { durationHours, numberCleanings, autoRenew },
+        schedule: { date, time, timeWindow, extras },
+        additional: { cleaningInstructions, favoriteDuo, serviceType },
+      };
+
+      const res = await fetch("/api/duo/update", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          rowNumber: Number(selectedPlanRow || 0),
+          updateMode, // address | plan | schedule | additional
+          payload,
+        }),
+      });
+
+      const data = await res.json();
+      if (!res.ok || !data.ok) throw new Error(data?.error || "Update failed");
+
+      setMsg("✅ Plan updated successfully!");
+
+      // ✅ Reset back to start (clean and simple)
+      setStep(1);
+
+      setUserType("");
+      setEmail("");
+      setFullName("");
+      setPhone("");
+      setAction("");
+
+      setSelectedPlanRow("");
+      setModifyAction("");
+
+      setProvince("");
+      setCity("");
+      setStreet("");
+      setDetails("");
+      setPropertyType("");
+
+      setDurationHours("");
+      setNumberCleanings("");
+      setAutoRenew("");
+
+      setDate("");
+      setTime("");
+      setTimeWindow("");
+      setExtras({});
+
+      setCleaningInstructions("");
+      setFavoriteDuo("");
+      setServiceType("");
+
+      setPlans([]);
+    } catch (e) {
+      setMsg(e.message);
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  // ✅ Original submit (New User / Registered hire flow)
   async function submitAll() {
     setMsg("");
     setSaving(true);
 
     try {
-      // ✅ Payload is same, we only add "additional" object
       const payload = {
         userType: userType === "new" ? "New" : "Registered",
         flowAction: action === "hire" ? "Hire cleaning services" : action === "plans" ? "View Active Plans" : "",
@@ -267,12 +387,14 @@ export default function FormShell() {
       setMsg("✅ Saved to Google Sheet!");
       setStep(1);
 
-      // ✅ Reset everything (same behavior)
       setUserType("");
       setEmail("");
       setFullName("");
       setPhone("");
       setAction("");
+
+      setSelectedPlanRow("");
+      setModifyAction("");
 
       setProvince("");
       setCity("");
@@ -302,7 +424,7 @@ export default function FormShell() {
   }
 
   // =========================================================
-  // NAVIGATION (no behavior change)
+  // NAVIGATION (updated only for registered plans flow)
   // =========================================================
   function goNext() {
     setMsg("");
@@ -310,11 +432,19 @@ export default function FormShell() {
     if (step === 1 && canNextStep1()) return setStep(2);
 
     if (step === 2 && canNextStep2()) {
-      // ✅ Registered flow: "View Active Plans" stays on step 2
+      // ✅ Registered plans modify flow:
       if (userType === "registered" && action === "plans") {
-        fetchPlans();
+        // Prefill data once, then route user to right step
+        prefillFromSelectedPlan_();
+
+        if (modifyAction === "address") return setStep(3);
+        if (modifyAction === "plan") return setStep(4);
+        if (modifyAction === "schedule") return setStep(5);
+        if (modifyAction === "additional") return setStep(6);
         return;
       }
+
+      // ✅ Old behavior for registered hire/new users
       return setStep(3);
     }
 
@@ -332,6 +462,17 @@ export default function FormShell() {
     if (step === 6) return setStep(5);
   }
 
+  // ✅ Determine which action happens at Step 6 button:
+  // - New user OR registered hire => submitAll (append)
+  // - registered plans modify => updateExistingPlan(modifyAction)
+  function onFinalSubmitClick() {
+    if (userType === "registered" && action === "plans") {
+      // return updateExistingPlan(modifyAction);
+      return updateExistingPlan("all");
+    }
+    return submitAll();
+  }
+
   return (
     <div className="min-h-screen bg-gray-600 text-white flex items-center justify-center p-6">
       <div className="w-full max-w-xl rounded-2xl border border-zinc-800 bg-zinc-950/40 p-6">
@@ -344,7 +485,7 @@ export default function FormShell() {
           <div className="mt-4 rounded-xl border border-zinc-800 bg-zinc-950/50 p-3 text-sm">{msg}</div>
         ) : null}
 
-        {/* ✅ Steps (UI components only) */}
+        {/* ✅ Steps */}
         {step === 1 && <Step1UserType userType={userType} setUserType={setUserType} />}
 
         {step === 2 && (
@@ -361,6 +502,11 @@ export default function FormShell() {
             plansLoading={plansLoading}
             plans={plans}
             fetchPlans={fetchPlans}
+            // ✅ NEW
+            selectedPlanRow={selectedPlanRow}
+            setSelectedPlanRow={setSelectedPlanRow}
+            modifyAction={modifyAction}
+            setModifyAction={setModifyAction}
           />
         )}
 
@@ -393,7 +539,7 @@ export default function FormShell() {
             durationOptions={durationOptions}
             numberCleaningsOptions={numberCleaningsOptions}
             renewOptions={renewOptions}
-            onChangeNumberCleanings={() => setExtras({})} // ✅ same behavior as before
+            onChangeNumberCleanings={() => setExtras({})}
           />
         )}
 
@@ -453,11 +599,11 @@ export default function FormShell() {
           ) : (
             <button
               type="button"
-              onClick={submitAll}
+              onClick={onFinalSubmitClick}
               disabled={!canSubmitStep6() || saving}
               className="ml-auto rounded-xl bg-white px-4 py-2 text-sm font-semibold text-black hover:bg-zinc-200 disabled:opacity-60"
             >
-              {saving ? "Saving..." : TEXT.submit}
+              {saving ? "Saving..." : userType === "registered" && action === "plans" ? "Update" : TEXT.submit}
             </button>
           )}
         </div>
