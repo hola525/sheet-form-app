@@ -1,7 +1,7 @@
 // ✅ FILE: app/duo/FormShell.js
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 // ✅ Step components (UI only)
 import Step1UserType from "./steps/Step1UserType";
@@ -72,8 +72,7 @@ function joinCSV_(arr) {
 export default function FormShell() {
   // =========================================================
   // STEP FLOW STATE
-  // Step 5 removed (merged into Step 4)
-  // Steps now: 1,2,3,4,5(Additional)
+  // Steps: 1,2,3,4,5(Additional)
   // =========================================================
   const [step, setStep] = useState(1);
 
@@ -97,23 +96,23 @@ export default function FormShell() {
   const [details, setDetails] = useState("");
   const [propertyType, setPropertyType] = useState("");
 
-  // Step 4 - Plan + Schedule + Extras (NEW MERGED)
+  // Step 4 - Plan + Schedule + Extras
   const [durationHours, setDurationHours] = useState("");
   const [numberCleanings, setNumberCleanings] = useState("");
   const [autoRenew, setAutoRenew] = useState("");
 
   // ✅ NEW schedule state (per cleaning)
-  const [scheduleDates, setScheduleDates] = useState([]); // ["2026-01-10", "2026-01-12"]
-  const [scheduleTimes, setScheduleTimes] = useState([]); // ["10:00", "14:00"]
-  const [extrasByCleaning, setExtrasByCleaning] = useState({}); // { "Cleaning 1": ["Nothing"], "Cleaning 2": ["Ladder"] }
+  const [scheduleDates, setScheduleDates] = useState([]); // ["2026-01-10", ...]
+  const [scheduleTimes, setScheduleTimes] = useState([]); // ["10:00", ...]
+  const [extrasByCleaning, setExtrasByCleaning] = useState({}); // { "Cleaning 1": ["Nothing"], ... }
 
   // (keep legacy fields so we don’t break existing update/prefill logic)
   const [date, setDate] = useState(""); // comma string
   const [time, setTime] = useState(""); // comma string
-  const [timeWindow, setTimeWindow] = useState(""); // not used now, keep for compatibility
+  const [timeWindow, setTimeWindow] = useState(""); // keep for compatibility
   const [extras, setExtras] = useState({}); // legacy map
 
-  // Final step (was Step 6)
+  // Final step
   const [cleaningInstructions, setCleaningInstructions] = useState("");
   const [favoriteDuo, setFavoriteDuo] = useState("");
   const [serviceType, setServiceType] = useState("");
@@ -175,27 +174,15 @@ export default function FormShell() {
   // =========================================================
   // OPTIONS (cfg first, then fallback OPTIONS)
   // =========================================================
-  const provinceOptions = cfg.provinces.length
-    ? cfg.provinces
-    : OPTIONS.provinces;
-  const propertyTypeOptions = cfg.propertyTypes.length
-    ? cfg.propertyTypes
-    : OPTIONS.propertyTypes;
-  const durationOptions = cfg.durationHours.length
-    ? cfg.durationHours
-    : OPTIONS.durationHours;
-  const numberCleaningsOptions = cfg.numberOfCleanings.length
-    ? cfg.numberOfCleanings
-    : OPTIONS.numberCleanings;
+  const provinceOptions = cfg.provinces.length ? cfg.provinces : OPTIONS.provinces;
+  const propertyTypeOptions = cfg.propertyTypes.length ? cfg.propertyTypes : OPTIONS.propertyTypes;
+  const durationOptions = cfg.durationHours.length ? cfg.durationHours : OPTIONS.durationHours;
+  const numberCleaningsOptions = cfg.numberOfCleanings.length ? cfg.numberOfCleanings : OPTIONS.numberCleanings;
   const renewOptions = cfg.renewPlans.length ? cfg.renewPlans : ["Yes", "No"];
-  const serviceTypeOptions = cfg.serviceTypes.length
-    ? cfg.serviceTypes
-    : OPTIONS.serviceTypes;
+  const serviceTypeOptions = cfg.serviceTypes.length ? cfg.serviceTypes : OPTIONS.serviceTypes;
 
   // ✅ Extras checkbox list (fixed list)
-  const extrasCheckboxOptions = cfg.extrasCols.length
-    ? cfg.extrasCols
-    : OPTIONS.extrasCols;
+  const extrasCheckboxOptions = cfg.extrasCols.length ? cfg.extrasCols : OPTIONS.extrasCols;
 
   // ✅ City/Town dropdown depends on selected Province
   const cityOptions = useMemo(() => {
@@ -211,10 +198,7 @@ export default function FormShell() {
   const cleaningLabels = useMemo(() => {
     const n = Number(numberCleanings || 0);
     if (!n) return [];
-    return Array.from(
-      { length: Math.min(n, 12) },
-      (_, i) => `Cleaning ${i + 1}`
-    );
+    return Array.from({ length: Math.min(n, 12) }, (_, i) => `Cleaning ${i + 1}`);
   }, [numberCleanings]);
 
   // =========================================================
@@ -242,10 +226,8 @@ export default function FormShell() {
     return province && city && street.trim() && details.trim() && propertyType;
   }
 
-  // ✅ Step 4 now includes schedule + extras for EACH cleaning
   function canNextStep4() {
-    if (!(durationHours && numberCleanings && renewOptions.includes(autoRenew)))
-      return false;
+    if (!(durationHours && numberCleanings && renewOptions.includes(autoRenew))) return false;
 
     const n = Number(numberCleanings || 0);
     if (!n) return false;
@@ -257,7 +239,6 @@ export default function FormShell() {
 
       const key = `Cleaning ${i + 1}`;
       const selected = extrasByCleaning[key] || [];
-      // require at least one selection (user can pick "Nothing")
       if (!Array.isArray(selected) || selected.length === 0) return false;
     }
 
@@ -279,12 +260,9 @@ export default function FormShell() {
     setPlansLoading(true);
 
     try {
-      const res = await fetch(
-        `/api/duo/plans?email=${encodeURIComponent(email.trim())}`
-      );
+      const res = await fetch(`/api/duo/plans?email=${encodeURIComponent(email.trim())}`);
       const data = await res.json();
-      if (!res.ok || !data.ok)
-        throw new Error(data?.error || "Failed to load plans");
+      if (!res.ok || !data.ok) throw new Error(data?.error || "Failed to load plans");
       setPlans(data.plans || []);
     } catch (e) {
       setMsg(e.message);
@@ -293,10 +271,45 @@ export default function FormShell() {
     }
   }
 
-  // ✅ Prefill (keep compatible; also initialize new schedule arrays if possible)
-  function prefillFromSelectedPlan_() {
-    const id = selectedPlanId;
+  // ✅ AUTO-FETCH PLANS (no refresh button needed)
+  // - Runs when: registered + action=plans + email changes
+  // - Debounced to avoid calling API on every single keystroke
+  const autoFetchTimerRef = useRef(null);
+  useEffect(() => {
+    // Only auto fetch in registered plans flow
+    if (!(userType === "registered" && action === "plans")) return;
+
+    const trimmed = email.trim();
+    if (!trimmed) {
+      setPlans([]);
+      setPlansLoading(false);
+      // keep action selected (DON'T uncheck radio)
+      setSelectedPlanId("");
+      setModifyAction("");
+      return;
+    }
+
+    // Clear selection when email changes, but keep action selected
+    setSelectedPlanId("");
+    setModifyAction("");
+
+    // debounce
+    if (autoFetchTimerRef.current) clearTimeout(autoFetchTimerRef.current);
+    autoFetchTimerRef.current = setTimeout(() => {
+      fetchPlans();
+    }, 450);
+
+    return () => {
+      if (autoFetchTimerRef.current) clearTimeout(autoFetchTimerRef.current);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [email, userType, action]);
+
+  // ✅ Prefill (keep compatible; now accepts forced id so 3-dots can jump)
+  function prefillFromSelectedPlan_(forcedId) {
+    const id = forcedId || selectedPlanId;
     if (!id) return;
+
     const plan = plans.find((p) => p.id === id);
     if (!plan) return;
 
@@ -319,19 +332,15 @@ export default function FormShell() {
     setTime(tStr);
     setTimeWindow(plan["time window"] || "");
 
-    // Initialize NEW arrays from comma strings
-    const dArr = splitCSV_(dStr);
-    const tArr = splitCSV_(tStr);
-    setScheduleDates(dArr);
-    setScheduleTimes(tArr);
+    // NEW arrays from CSV
+    setScheduleDates(splitCSV_(dStr));
+    setScheduleTimes(splitCSV_(tStr));
 
     // Extras JSON
     try {
       const ex = plan["extras (json)"] ? JSON.parse(plan["extras (json)"]) : {};
       setExtras(ex && typeof ex === "object" ? ex : {});
 
-      // Try to map old extras format into new checkbox format
-      // Old: { "Cleaning 1": "Ladder" }  => New: { "Cleaning 1": ["Ladder"] }
       const mapped = {};
       Object.keys(ex || {}).forEach((k) => {
         const v = ex[k];
@@ -350,13 +359,29 @@ export default function FormShell() {
     setServiceType(plan["type of service to be performed"] || "");
   }
 
+  // ✅ Instant jump handler (called by Step2 3-dots menu)
+  function onPlanActionSelect_(planId, actionKey) {
+    // Keep same flow
+    setAction("plans");
+    setSelectedPlanId(planId);
+    setModifyAction(actionKey);
+
+    // Prefill BEFORE jump
+    prefillFromSelectedPlan_(planId);
+
+    // Jump instantly
+    if (actionKey === "address") return setStep(3);
+    if (actionKey === "plan") return setStep(4);
+    if (actionKey === "schedule") return setStep(4);
+    if (actionKey === "additional") return setStep(5);
+  }
+
   // ✅ Update existing row (Registered plans modify flow)
   async function updateExistingPlan(updateMode) {
     setMsg("");
     setSaving(true);
 
     try {
-      // Convert NEW schedule arrays → comma-separated strings (for sheet)
       const scheduleDateCSV = joinCSV_(scheduleDates);
       const scheduleTimeCSV = joinCSV_(scheduleTimes);
 
@@ -366,8 +391,8 @@ export default function FormShell() {
         schedule: {
           date: scheduleDateCSV,
           time: scheduleTimeCSV,
-          timeWindow: timeWindow || "", // keep existing column stable
-          extras: extrasByCleaning, // ✅ NEW JSON format
+          timeWindow: timeWindow || "",
+          extras: extrasByCleaning,
         },
         additional: { cleaningInstructions, favoriteDuo, serviceType },
       };
@@ -375,11 +400,7 @@ export default function FormShell() {
       const res = await fetch("/api/duo/update", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          id: selectedPlanId,
-          updateMode,
-          payload,
-        }),
+        body: JSON.stringify({ id: selectedPlanId, updateMode, payload }),
       });
 
       const data = await res.json();
@@ -400,7 +421,6 @@ export default function FormShell() {
     setSaving(true);
 
     try {
-      // Convert NEW schedule arrays → comma-separated strings (for sheet)
       const scheduleDateCSV = joinCSV_(scheduleDates);
       const scheduleTimeCSV = joinCSV_(scheduleTimes);
 
@@ -412,22 +432,17 @@ export default function FormShell() {
             : action === "plans"
             ? "View Active Plans"
             : "",
-
         email,
         fullName: userType === "new" ? fullName : "",
         phone: userType === "new" ? phone : "",
-
         address: { province, city, street, details, propertyType },
         plan: { durationHours, numberCleanings, autoRenew },
-
-        // ✅ Schedule fields remain the SAME columns (just CSV now)
         schedule: {
           date: scheduleDateCSV,
           time: scheduleTimeCSV,
-          timeWindow: timeWindow || "", // keep column stable even if unused
-          extras: extrasByCleaning, // ✅ NEW JSON format
+          timeWindow: timeWindow || "",
+          extras: extrasByCleaning,
         },
-
         additional: { cleaningInstructions, favoriteDuo, serviceType },
       };
 
@@ -488,7 +503,7 @@ export default function FormShell() {
   }
 
   // =========================================================
-  // NAVIGATION
+  // NAVIGATION (same behavior as before)
   // =========================================================
   function goNext() {
     setMsg("");
@@ -500,12 +515,11 @@ export default function FormShell() {
         prefillFromSelectedPlan_();
 
         if (modifyAction === "address") return setStep(3);
-        if (modifyAction === "plan") return setStep(4); // plan + schedule now
-        if (modifyAction === "schedule") return setStep(4); // schedule merged into step 4
+        if (modifyAction === "plan") return setStep(4);
+        if (modifyAction === "schedule") return setStep(4);
         if (modifyAction === "additional") return setStep(5);
         return;
       }
-
       return setStep(3);
     }
 
@@ -522,18 +536,14 @@ export default function FormShell() {
   }
 
   function onFinalSubmitClick() {
-    if (userType === "registered" && action === "plans") {
-      return updateExistingPlan("all");
-    }
+    if (userType === "registered" && action === "plans") return updateExistingPlan("all");
     return submitAll();
   }
 
-  // ✅ When number of cleanings changes, reset schedule/extras for clean UX
   function onChangeNumberCleanings_() {
     setScheduleDates([]);
     setScheduleTimes([]);
     setExtrasByCleaning({});
-    // keep legacy cleared too
     setDate("");
     setTime("");
     setExtras({});
@@ -554,9 +564,7 @@ export default function FormShell() {
         ) : null}
 
         {/* ✅ Steps */}
-        {step === 1 && (
-          <Step1UserType userType={userType} setUserType={setUserType} />
-        )}
+        {step === 1 && <Step1UserType userType={userType} setUserType={setUserType} />}
 
         {step === 2 && (
           <Step2Email
@@ -571,11 +579,12 @@ export default function FormShell() {
             setAction={setAction}
             plansLoading={plansLoading}
             plans={plans}
-            fetchPlans={fetchPlans}
+            fetchPlans={fetchPlans} // still available as manual refresh if needed
             selectedPlanId={selectedPlanId}
             setSelectedPlanId={setSelectedPlanId}
             modifyAction={modifyAction}
             setModifyAction={setModifyAction}
+            onPlanActionSelect={onPlanActionSelect_} // ✅ 3-dots -> instant jump
           />
         )}
 
@@ -597,7 +606,6 @@ export default function FormShell() {
           />
         )}
 
-        {/* ✅ Step 4 now includes schedule+extras UI */}
         {step === 4 && (
           <Step4Plan
             durationHours={durationHours}
@@ -610,7 +618,6 @@ export default function FormShell() {
             numberCleaningsOptions={numberCleaningsOptions}
             renewOptions={renewOptions}
             onChangeNumberCleanings={onChangeNumberCleanings_}
-            // ✅ NEW props
             cleaningLabels={cleaningLabels}
             scheduleDates={scheduleDates}
             setScheduleDates={setScheduleDates}
@@ -622,7 +629,6 @@ export default function FormShell() {
           />
         )}
 
-        {/* ✅ Final step is Additional */}
         {step === 5 && (
           <Step6Additional
             cleaningInstructions={cleaningInstructions}
@@ -667,11 +673,7 @@ export default function FormShell() {
               disabled={!canSubmitFinal() || saving}
               className="ml-auto rounded-xl bg-white px-4 py-2 text-sm font-semibold text-black hover:bg-zinc-200 disabled:opacity-60"
             >
-              {saving
-                ? "Saving..."
-                : userType === "registered" && action === "plans"
-                ? "Update"
-                : TEXT.submit}
+              {saving ? "Saving..." : userType === "registered" && action === "plans" ? "Update" : TEXT.submit}
             </button>
           )}
         </div>
