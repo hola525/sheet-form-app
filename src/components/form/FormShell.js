@@ -1,7 +1,7 @@
 // ✅ FILE: app/duo/FormShell.js
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 // ✅ Step components (UI only)
 import Step1UserType from "./steps/Step1UserType";
@@ -73,14 +73,11 @@ function joinCSV_(arr) {
 function isValidEmail_(value) {
   const v = String(value || "").trim();
   if (!v) return false;
-  // simple, safe regex (not over-strict)
   return /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(v);
 }
-
 function isValidPhone_(value) {
   const v = String(value || "").trim();
   if (!v) return false;
-  // allow +, spaces, hyphen; validate by digits count
   const digits = v.replace(/[^\d]/g, "");
   return digits.length >= 7 && digits.length <= 15;
 }
@@ -88,7 +85,6 @@ function isValidPhone_(value) {
 export default function FormShell() {
   // =========================================================
   // STEP FLOW STATE
-  // Steps: 1,2,3,4,5(Additional)
   // =========================================================
   const [step, setStep] = useState(1);
 
@@ -103,7 +99,7 @@ export default function FormShell() {
 
   // ✅ Registered plans flow
   const [selectedPlanId, setSelectedPlanId] = useState("");
-  const [modifyAction, setModifyAction] = useState("");
+  const [modifyAction, setModifyAction] = useState(""); // "address" | "plan" | "schedule" | "additional"
 
   // Step 3 - Address
   const [province, setProvince] = useState("");
@@ -118,15 +114,15 @@ export default function FormShell() {
   const [autoRenew, setAutoRenew] = useState("");
 
   // ✅ NEW schedule state (per cleaning)
-  const [scheduleDates, setScheduleDates] = useState([]); // ["2026-01-10", ...]
-  const [scheduleTimes, setScheduleTimes] = useState([]); // ["10:00", ...]
-  const [extrasByCleaning, setExtrasByCleaning] = useState({}); // { "Cleaning 1": ["Nothing"], ... }
+  const [scheduleDates, setScheduleDates] = useState([]);
+  const [scheduleTimes, setScheduleTimes] = useState([]);
+  const [extrasByCleaning, setExtrasByCleaning] = useState({});
 
-  // (keep legacy fields so we don’t break existing update/prefill logic)
-  const [date, setDate] = useState(""); // comma string
-  const [time, setTime] = useState(""); // comma string
-  const [timeWindow, setTimeWindow] = useState(""); // keep for compatibility
-  const [extras, setExtras] = useState({}); // legacy map
+  // legacy fields
+  const [date, setDate] = useState("");
+  const [time, setTime] = useState("");
+  const [timeWindow, setTimeWindow] = useState("");
+  const [extras, setExtras] = useState({});
 
   // Final step
   const [cleaningInstructions, setCleaningInstructions] = useState("");
@@ -140,10 +136,10 @@ export default function FormShell() {
   // UI status
   const [msg, setMsg] = useState("");
   const [saving, setSaving] = useState(false);
-  const [touchedNext, setTouchedNext] = useState(0); // step number when user pressed Next
+  const [touchedNext, setTouchedNext] = useState(0); // step number when user pressed Next/Update
 
   // =========================================================
-  // CONFIG FROM GOOGLE SHEET (Config tab)
+  // CONFIG FROM GOOGLE SHEET
   // =========================================================
   const [cfg, setCfg] = useState({
     departments: [],
@@ -181,9 +177,7 @@ export default function FormShell() {
             serviceTypes: data.serviceTypes || [],
           });
         }
-      } catch (e) {
-        // silent fallback
-      }
+      } catch (e) {}
     }
     load();
   }, []);
@@ -193,28 +187,15 @@ export default function FormShell() {
   }, [step]);
 
   // =========================================================
-  // OPTIONS (cfg first, then fallback OPTIONS)
+  // OPTIONS
   // =========================================================
-  const provinceOptions = cfg.provinces.length
-    ? cfg.provinces
-    : OPTIONS.provinces;
-  const propertyTypeOptions = cfg.propertyTypes.length
-    ? cfg.propertyTypes
-    : OPTIONS.propertyTypes;
-  const durationOptions = cfg.durationHours.length
-    ? cfg.durationHours
-    : OPTIONS.durationHours;
-  const numberCleaningsOptions = cfg.numberOfCleanings.length
-    ? cfg.numberOfCleanings
-    : OPTIONS.numberCleanings;
+  const provinceOptions = cfg.provinces.length ? cfg.provinces : OPTIONS.provinces;
+  const propertyTypeOptions = cfg.propertyTypes.length ? cfg.propertyTypes : OPTIONS.propertyTypes;
+  const durationOptions = cfg.durationHours.length ? cfg.durationHours : OPTIONS.durationHours;
+  const numberCleaningsOptions = cfg.numberOfCleanings.length ? cfg.numberOfCleanings : OPTIONS.numberCleanings;
   const renewOptions = cfg.renewPlans.length ? cfg.renewPlans : ["Yes", "No"];
-  const serviceTypeOptions = cfg.serviceTypes.length
-    ? cfg.serviceTypes
-    : OPTIONS.serviceTypes;
-
-  const extrasCheckboxOptions = cfg.extrasCols.length
-    ? cfg.extrasCols
-    : OPTIONS.extrasCols;
+  const serviceTypeOptions = cfg.serviceTypes.length ? cfg.serviceTypes : OPTIONS.serviceTypes;
+  const extrasCheckboxOptions = cfg.extrasCols.length ? cfg.extrasCols : OPTIONS.extrasCols;
 
   const cityOptions = useMemo(() => {
     if (!province) return [];
@@ -223,20 +204,30 @@ export default function FormShell() {
     return OPTIONS.cities[province] || [];
   }, [province, cfg.citiesByProvince]);
 
-  // =========================================================
-  // Derived: cleaning labels
-  // =========================================================
   const cleaningLabels = useMemo(() => {
     const n = Number(numberCleanings || 0);
     if (!n) return [];
-    return Array.from(
-      { length: Math.min(n, 12) },
-      (_, i) => `Cleaning ${i + 1}`
-    );
+    return Array.from({ length: Math.min(n, 12) }, (_, i) => `Cleaning ${i + 1}`);
   }, [numberCleanings]);
 
   // =========================================================
-  // VALIDATION (existing boolean validators)
+  // ✅ Partial update helper
+  // =========================================================
+  const isRegisteredPlansFlow = userType === "registered" && action === "plans";
+
+  function getUpdateModeForCurrentStep_() {
+    if (!isRegisteredPlansFlow) return "";
+    if (!modifyAction) return "";
+
+    if (step === 3 && modifyAction === "address") return "address";
+    if (step === 4 && modifyAction === "plan") return "plan";
+    if (step === 4 && modifyAction === "schedule") return "schedule";
+    if (step === 5 && modifyAction === "additional") return "additional";
+    return "";
+  }
+
+  // =========================================================
+  // VALIDATION BOOLEANS
   // =========================================================
   function canNextStep1() {
     return userType === "new" || userType === "registered";
@@ -260,8 +251,7 @@ export default function FormShell() {
   }
 
   function canNextStep4() {
-    if (!(durationHours && numberCleanings && renewOptions.includes(autoRenew)))
-      return false;
+    if (!(durationHours && numberCleanings && renewOptions.includes(autoRenew))) return false;
 
     const n = Number(numberCleanings || 0);
     if (!n) return false;
@@ -285,16 +275,13 @@ export default function FormShell() {
     return true;
   }
 
-  // ✅ NEW: Human-friendly error messages per step
+  // ✅ Human-friendly error messages per step (same as your old working file)
   function getStepError_(stepNum) {
-    // Step 1
     if (stepNum === 1) {
-      if (!userType)
-        return "Please select Email Type (New Email or Registered Email).";
+      if (!userType) return "Please select Email Type (New Email or Registered Email).";
       return "";
     }
 
-    // Step 2
     if (stepNum === 2) {
       if (!email.trim()) return "Please enter your email address.";
       if (!isValidEmail_(email))
@@ -310,18 +297,15 @@ export default function FormShell() {
       if (userType === "registered") {
         if (!action) return "Please choose what action you want to take.";
         if (action === "plans") {
-          if (!selectedPlanId)
-            return "Please select a plan first (and pick an action).";
+          if (!selectedPlanId) return "Please select a plan first (and pick an action).";
           if (!modifyAction)
             return "Please choose what you want to change for the selected plan.";
         }
         return "";
       }
-
       return "";
     }
 
-    // Step 3
     if (stepNum === 3) {
       if (!province) return "Please select a Province.";
       if (!city) return "Please select a City/Town.";
@@ -331,12 +315,10 @@ export default function FormShell() {
       return "";
     }
 
-    // Step 4
     if (stepNum === 4) {
       if (!durationHours) return "Please select Duration of each cleaning.";
       if (!numberCleanings) return "Please select Number of Cleanings.";
-      if (!renewOptions.includes(autoRenew))
-        return "Please choose Auto renew (Yes/No).";
+      if (!renewOptions.includes(autoRenew)) return "Please choose Auto renew (Yes/No).";
 
       const n = Number(numberCleanings || 0);
       if (!n) return "Please select Number of Cleanings.";
@@ -352,14 +334,11 @@ export default function FormShell() {
         if (!Array.isArray(ex) || ex.length === 0)
           return `Please select Extras for ${label} (choose “Nothing” if none).`;
       }
-
       return "";
     }
 
-    // Step 5
     if (stepNum === 5) {
-      if (!cleaningInstructions.trim())
-        return "Please fill Cleaning instructions.";
+      if (!cleaningInstructions.trim()) return "Please fill Cleaning instructions.";
       if (!serviceType) return "Please select Type of service to be performed.";
       return "";
     }
@@ -376,12 +355,9 @@ export default function FormShell() {
     setPlansLoading(true);
 
     try {
-      const res = await fetch(
-        `/api/duo/plans?email=${encodeURIComponent(email.trim())}`
-      );
+      const res = await fetch(`/api/duo/plans?email=${encodeURIComponent(email.trim())}`);
       const data = await res.json();
-      if (!res.ok || !data.ok)
-        throw new Error(data?.error || "Failed to load plans");
+      if (!res.ok || !data.ok) throw new Error(data?.error || "Failed to load plans");
       setPlans(data.plans || []);
     } catch (e) {
       setMsg(e.message);
@@ -390,7 +366,6 @@ export default function FormShell() {
     }
   }
 
-  // ✅ Prefill (keep compatible; accepts forced id so Step2 can instantly jump)
   function prefillFromSelectedPlan_(forcedId) {
     const id = forcedId || selectedPlanId;
     if (!id) return;
@@ -398,30 +373,25 @@ export default function FormShell() {
     const plan = plans.find((p) => p.id === id);
     if (!plan) return;
 
-    // Address
     setProvince(plan["province"] || "");
     setCity(plan["city/town"] || "");
     setStreet(plan["street/number"] || "");
     setDetails(plan["property details"] || "");
     setPropertyType(plan["property type"] || "");
 
-    // Plan
     setDurationHours(plan["duration hours"] || "");
     setNumberCleanings(plan["number of cleanings"] || "");
     setAutoRenew(plan["auto renew"] || "");
 
-    // Legacy schedule strings (comma)
     const dStr = plan["schedule date"] || "";
     const tStr = plan["schedule time"] || "";
     setDate(dStr);
     setTime(tStr);
     setTimeWindow(plan["time window"] || "");
 
-    // NEW arrays from CSV
     setScheduleDates(splitCSV_(dStr));
     setScheduleTimes(splitCSV_(tStr));
 
-    // Extras JSON
     try {
       const ex = plan["extras (json)"] ? JSON.parse(plan["extras (json)"]) : {};
       setExtras(ex && typeof ex === "object" ? ex : {});
@@ -438,13 +408,11 @@ export default function FormShell() {
       setExtrasByCleaning({});
     }
 
-    // Additional
     setCleaningInstructions(plan["cleaning instructions"] || "");
     setFavoriteDuo(plan["favorite duo0"] || "");
     setServiceType(plan["type of service to be performed"] || "");
   }
 
-  // ✅ Instant jump handler (called by Step2 3-dots menu)
   function onPlanActionSelect_(planId, actionKey) {
     setAction("plans");
     setSelectedPlanId(planId);
@@ -458,7 +426,6 @@ export default function FormShell() {
     if (actionKey === "additional") return setStep(5);
   }
 
-  // ✅ Update existing row
   async function updateExistingPlan(updateMode) {
     setMsg("");
     setSaving(true);
@@ -470,12 +437,7 @@ export default function FormShell() {
       const payload = {
         address: { province, city, street, details, propertyType },
         plan: { durationHours, numberCleanings, autoRenew },
-        schedule: {
-          date: scheduleDateCSV,
-          time: scheduleTimeCSV,
-          timeWindow: timeWindow || "",
-          extras: extrasByCleaning,
-        },
+        schedule: { date: scheduleDateCSV, time: scheduleTimeCSV, timeWindow: timeWindow || "", extras: extrasByCleaning },
         additional: { cleaningInstructions, favoriteDuo, serviceType },
       };
 
@@ -488,6 +450,15 @@ export default function FormShell() {
       const data = await res.json();
       if (!res.ok || !data.ok) throw new Error(data?.error || "Update failed");
 
+      if (isRegisteredPlansFlow && updateMode && updateMode !== "all") {
+        setMsg("✅ Updated successfully!");
+        setStep(2);
+        setSelectedPlanId("");
+        setModifyAction("");
+        fetchPlans();
+        return;
+      }
+
       setMsg("✅ Plan updated successfully!");
       resetAll_();
     } catch (e) {
@@ -497,7 +468,6 @@ export default function FormShell() {
     }
   }
 
-  // ✅ Submit
   async function submitAll() {
     setMsg("");
     setSaving(true);
@@ -522,13 +492,7 @@ export default function FormShell() {
         address: { province, city, street, details, propertyType },
         plan: { durationHours, numberCleanings, autoRenew },
 
-        schedule: {
-          date: scheduleDateCSV,
-          time: scheduleTimeCSV,
-          timeWindow: timeWindow || "",
-          extras: extrasByCleaning,
-        },
-
+        schedule: { date: scheduleDateCSV, time: scheduleTimeCSV, timeWindow: timeWindow || "", extras: extrasByCleaning },
         additional: { cleaningInstructions, favoriteDuo, serviceType },
       };
 
@@ -552,13 +516,11 @@ export default function FormShell() {
 
   function resetAll_() {
     setStep(1);
-
     setUserType("");
     setEmail("");
     setFullName("");
     setPhone("");
     setAction("");
-
     setSelectedPlanId("");
     setModifyAction("");
 
@@ -584,25 +546,22 @@ export default function FormShell() {
     setCleaningInstructions("");
     setFavoriteDuo("");
     setServiceType("");
-
     setPlans([]);
   }
 
   // =========================================================
-  // NAVIGATION (same behavior, now with messages on click)
+  // NAVIGATION
   // =========================================================
   function goNext() {
     setMsg("");
-    setTouchedNext(step); // ✅ user tried to go next from this step
+    setTouchedNext(step);
 
-    // ✅ show friendly message if invalid
     const err = getStepError_(step);
     if (err) {
       setMsg(`❌ ${err}`);
       return;
     }
 
-    // ✅ existing flow (unchanged)
     if (step === 1 && canNextStep1()) return setStep(2);
 
     if (step === 2 && canNextStep2()) {
@@ -624,6 +583,13 @@ export default function FormShell() {
 
   function goBack() {
     setMsg("");
+
+    // ✅ back from edit section -> go to plans list
+    if (isRegisteredPlansFlow && step !== 2 && modifyAction) {
+      setStep(2);
+      return;
+    }
+
     if (step === 2) return setStep(1);
     if (step === 3) return setStep(2);
     if (step === 4) return setStep(3);
@@ -632,16 +598,15 @@ export default function FormShell() {
 
   function onFinalSubmitClick() {
     setMsg("");
-    setTouchedNext(step); // ✅ user tried to go next from this step
-    // ✅ show message instead of disabling submit
+    setTouchedNext(step);
+
     const err = getStepError_(5);
     if (err) {
       setMsg(`❌ ${err}`);
       return;
     }
 
-    if (userType === "registered" && action === "plans")
-      return updateExistingPlan("all");
+    if (userType === "registered" && action === "plans") return updateExistingPlan("all");
     return submitAll();
   }
 
@@ -654,9 +619,25 @@ export default function FormShell() {
     setExtras({});
   }
 
-  // =========================================================
-  // UI
-  // =========================================================
+  // ✅ Decide if this screen should show "Update" instead of Next/Submit
+  const updateMode = getUpdateModeForCurrentStep_();
+  const showPartialUpdate = !!updateMode;
+
+  function onUpdateClick_() {
+    setMsg("");
+    setTouchedNext(step);
+
+    // ✅ IMPORTANT: show same error + red borders
+    const err = getStepError_(step);
+    if (err) {
+      setMsg(`❌ ${err}`);
+      return;
+    }
+
+    return updateExistingPlan(updateMode);
+  }
+
+  // ✅ For UI opacity only (not disabling click)
   const isNextBlocked =
     (step === 1 && !canNextStep1()) ||
     (step === 2 && !canNextStep2()) ||
@@ -664,7 +645,11 @@ export default function FormShell() {
     (step === 4 && !canNextStep4());
 
   const isSubmitBlocked = !canSubmitFinal();
+  const isUpdateBlocked = showPartialUpdate && !!getStepError_(step);
 
+  // =========================================================
+  // UI
+  // =========================================================
   return (
     <div className="min-h-screen w-full bg-gradient-to-b from-zinc-700 to-zinc-800 text-white px-4 py-10 sm:px-6">
       <div className="mx-auto w-full max-w-5xl min-h-[800px]">
@@ -765,7 +750,6 @@ export default function FormShell() {
               setExtrasByCleaning={setExtrasByCleaning}
               extrasCheckboxOptions={extrasCheckboxOptions}
               touchedNext={touchedNext}
-
             />
           )}
 
@@ -793,11 +777,25 @@ export default function FormShell() {
               {TEXT.back}
             </button>
 
-            {step < 5 ? (
+            {/* ✅ PARTIAL UPDATE MODE */}
+            {showPartialUpdate ? (
+              <button
+                type="button"
+                onClick={onUpdateClick_}
+                disabled={saving} // ✅ only disable while saving (so click still works for validation)
+                aria-disabled={isUpdateBlocked || saving}
+                className={[
+                  "w-full sm:w-auto sm:ml-auto rounded-2xl bg-white px-6 py-3 text-base font-semibold text-black hover:bg-zinc-200 cursor-pointer",
+                  isUpdateBlocked ? "opacity-60" : "",
+                  saving ? "opacity-60" : "",
+                ].join(" ")}
+              >
+                {saving ? "Updating..." : "Update"}
+              </button>
+            ) : step < 5 ? (
               <button
                 type="button"
                 onClick={goNext}
-                // ✅ keep clickable for showing msg
                 aria-disabled={isNextBlocked}
                 className={[
                   "w-full sm:w-auto sm:ml-auto rounded-2xl bg-white px-6 py-3 text-base font-semibold text-black hover:bg-zinc-200 cursor-pointer",
@@ -810,8 +808,7 @@ export default function FormShell() {
               <button
                 type="button"
                 onClick={onFinalSubmitClick}
-                // ✅ allow click for message, only block while saving
-                disabled={saving}
+                disabled={saving} // ✅ only disable while saving
                 aria-disabled={isSubmitBlocked || saving}
                 className={[
                   "w-full sm:w-auto sm:ml-auto rounded-2xl bg-white px-6 py-3 text-base font-semibold text-black hover:bg-zinc-200 cursor-pointer",
