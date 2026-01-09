@@ -13,9 +13,9 @@ export default function Step2Email({
   plans,
   fetchPlans,
 
-  // ✅ NEW for registered "plans" modify flow
-  selectedPlanRow,
-  setSelectedPlanRow,
+  // ✅ UUID-based selection
+  selectedPlanId,
+  setSelectedPlanId,
   modifyAction,
   setModifyAction,
 }) {
@@ -64,11 +64,17 @@ export default function Step2Email({
         <div className="rounded-xl border border-zinc-800 bg-black/30 p-4 space-y-3">
           <div className="text-sm font-semibold">EXISTING USER</div>
 
-          <label className="text-sm text-zinc-300">What action do you want to take? *</label>
+          <label className="text-sm text-zinc-300">
+            What action do you want to take? *
+          </label>
 
           <div className="space-y-2 text-sm">
             <label className="flex items-center gap-2">
-              <input type="radio" checked={action === "hire"} onChange={() => setAction("hire")} />
+              <input
+                type="radio"
+                checked={action === "hire"}
+                onChange={() => setAction("hire")}
+              />
               Hire cleaning services
             </label>
 
@@ -78,8 +84,7 @@ export default function Step2Email({
                 checked={action === "plans"}
                 onChange={() => {
                   setAction("plans");
-                  // ✅ clear selections when switching to plans
-                  setSelectedPlanRow("");
+                  setSelectedPlanId("");
                   setModifyAction("");
                 }}
               />
@@ -87,13 +92,20 @@ export default function Step2Email({
             </label>
           </div>
 
-          {/* Plans list (if action=plans) */}
+          {/* Plans list */}
           {action === "plans" && email.trim() ? (
             <div className="mt-3 rounded-xl border border-zinc-800 bg-black/20 p-3">
               <div className="flex items-center justify-between">
-                <div className="text-sm font-semibold">Active/Pending Plans</div>
+                <div className="text-sm font-semibold">
+                  Active/Pending Plans
+                </div>
 
-                <button type="button" onClick={fetchPlans} className="text-xs underline" disabled={plansLoading}>
+                <button
+                  type="button"
+                  onClick={fetchPlans}
+                  className="text-xs underline"
+                  disabled={plansLoading}
+                >
                   {plansLoading ? "Loading..." : "Refresh"}
                 </button>
               </div>
@@ -101,24 +113,33 @@ export default function Step2Email({
               {plansLoading ? (
                 <div className="mt-2 text-sm text-zinc-400">Loading…</div>
               ) : plans.length === 0 ? (
-                <div className="mt-2 text-sm text-zinc-400">No plans found for this email.</div>
+                <div className="mt-2 text-sm text-zinc-400">
+                  No plans found for this email.
+                </div>
               ) : (
                 <div className="mt-3 space-y-3">
-                  {/* ✅ 1) Select plan */}
+                  {/* 1️⃣ Select plan */}
                   <div className="rounded-xl border border-zinc-800 bg-black/30 p-3">
-                    <div className="text-sm font-semibold">Select the plan you want to VIEW/MODIFY *</div>
+                    <div className="text-sm font-semibold">
+                      Select the plan you want to VIEW / MODIFY *
+                    </div>
 
                     <div className="mt-2 space-y-2 text-sm">
                       {plans.map((p, idx) => {
-                        const row = String(p._rowNumber || "");
-                        const label = `${p["street/number"] || "-"}, ${p["city/town"] || "-"}, ${p["province"] || "-"} — ${p["duration hours"] || "-"}h × ${p["number of cleanings"] || "-"} cleanings`;
+                        const id = p.id;
+                        console.log("id----------->>>", id)
+                        const label = `${p["street/number"] || "-"}, ${
+                          p["city/town"] || "-"
+                        }, ${p["province"] || "-"} — ${
+                          p["duration hours"] || "-"
+                        }h × ${p["number of cleanings"] || "-"} cleanings`;
 
                         return (
                           <label key={idx} className="flex items-start gap-2">
                             <input
                               type="radio"
-                              checked={selectedPlanRow === row}
-                              onChange={() => setSelectedPlanRow(row)}
+                              checked={selectedPlanId === id}
+                              onChange={() => setSelectedPlanId(id)}
                             />
                             <span>{label}</span>
                           </label>
@@ -127,55 +148,41 @@ export default function Step2Email({
                     </div>
                   </div>
 
-                  {/* ✅ 2) Choose what to modify */}
+                  {/* 2️⃣ Choose what to modify */}
                   <div className="rounded-xl border border-zinc-800 bg-black/30 p-3">
-                    <div className="text-sm font-semibold">What action do you wish to take? *</div>
-
-                    <div className="mt-2 space-y-2 text-sm">
-                      <label className="flex items-center gap-2">
-                        <input
-                          type="radio"
-                          checked={modifyAction === "address"}
-                          onChange={() => setModifyAction("address")}
-                          disabled={!selectedPlanRow}
-                        />
-                        Change address of the plan
-                      </label>
-
-                      <label className="flex items-center gap-2">
-                        <input
-                          type="radio"
-                          checked={modifyAction === "plan"}
-                          onChange={() => setModifyAction("plan")}
-                          disabled={!selectedPlanRow}
-                        />
-                        Modify the contracted plan
-                      </label>
-
-                      <label className="flex items-center gap-2">
-                        <input
-                          type="radio"
-                          checked={modifyAction === "schedule"}
-                          onChange={() => setModifyAction("schedule")}
-                          disabled={!selectedPlanRow}
-                        />
-                        View/Change DATE, TIME & EXTRAS
-                      </label>
-
-                      <label className="flex items-center gap-2">
-                        <input
-                          type="radio"
-                          checked={modifyAction === "additional"}
-                          onChange={() => setModifyAction("additional")}
-                          disabled={!selectedPlanRow}
-                        />
-                        View/Change additional instructions
-                      </label>
+                    <div className="text-sm font-semibold">
+                      What action do you wish to take? *
                     </div>
 
-                    {!selectedPlanRow ? (
-                      <div className="mt-2 text-xs text-zinc-400">Select a plan first to unlock actions.</div>
-                    ) : null}
+                    <div className="mt-2 space-y-2 text-sm">
+                      {["address", "plan", "schedule", "additional"].map(
+                        (m) => (
+                          <label
+                            key={m}
+                            className="flex items-center gap-2"
+                          >
+                            <input
+                              type="radio"
+                              checked={modifyAction === m}
+                              onChange={() => setModifyAction(m)}
+                              disabled={!selectedPlanId}
+                            />
+                            {m === "address" && "Change address of the plan"}
+                            {m === "plan" && "Modify the contracted plan"}
+                            {m === "schedule" &&
+                              "View/Change DATE, TIME & EXTRAS"}
+                            {m === "additional" &&
+                              "View/Change additional instructions"}
+                          </label>
+                        )
+                      )}
+                    </div>
+
+                    {!selectedPlanId && (
+                      <div className="mt-2 text-xs text-zinc-400">
+                        Select a plan first to unlock actions.
+                      </div>
+                    )}
                   </div>
                 </div>
               )}

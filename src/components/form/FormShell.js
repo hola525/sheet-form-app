@@ -24,7 +24,7 @@ const OPTIONS = {
   provinces: ["Buenos Aires", "Córdoba", "Mendoza", "Santa Fé"],
   cities: {
     "Buenos Aires": ["Buenos Aires City", "La Plata"],
-    "Córdoba": [
+    Córdoba: [
       "Córdoba city (inside the ring road)",
       "Córdoba city (outside the ring road)",
       "Carlos Paz",
@@ -32,13 +32,21 @@ const OPTIONS = {
       "Saldán",
       "Villa Allende",
     ],
-    "Mendoza": ["Mendoza City"],
+    Mendoza: ["Mendoza City"],
     "Santa Fé": ["Santa Fé City", "qwdeqw"],
   },
   propertyTypes: ["House", "Apartment", "Office", "Commercial", "Airbnb"],
   durationHours: ["1", "2", "3", "4"],
   numberCleanings: ["1", "2", "4", "8", "12"],
-  extrasCols: ["Nothing", "Basic Kit", "Hydro-lavator", "Ladder", "Extensible", "Extension", "Hose"],
+  extrasCols: [
+    "Nothing",
+    "Basic Kit",
+    "Hydro-lavator",
+    "Ladder",
+    "Extensible",
+    "Extension",
+    "Hose",
+  ],
   serviceTypes: [
     "Completion of Work",
     "Pre/post move-in cleaning",
@@ -64,7 +72,7 @@ export default function FormShell() {
   const [action, setAction] = useState(""); // "hire" | "plans"
 
   // ✅ NEW (Registered plans flow)
-  const [selectedPlanRow, setSelectedPlanRow] = useState(""); // sheet row number as string
+  const [selectedPlanId, setSelectedPlanId] = useState(""); //IMP ID
   const [modifyAction, setModifyAction] = useState(""); // address | plan | schedule | additional
 
   // Step 3 - Address
@@ -151,13 +159,25 @@ export default function FormShell() {
   // =========================================================
   // OPTIONS (cfg first, then fallback OPTIONS)
   // =========================================================
-  const provinceOptions = cfg.provinces.length ? cfg.provinces : OPTIONS.provinces;
-  const propertyTypeOptions = cfg.propertyTypes.length ? cfg.propertyTypes : OPTIONS.propertyTypes;
-  const durationOptions = cfg.durationHours.length ? cfg.durationHours : OPTIONS.durationHours;
-  const numberCleaningsOptions = cfg.numberOfCleanings.length ? cfg.numberOfCleanings : OPTIONS.numberCleanings;
-  const extrasColOptions = cfg.extrasCols.length ? cfg.extrasCols : OPTIONS.extrasCols;
+  const provinceOptions = cfg.provinces.length
+    ? cfg.provinces
+    : OPTIONS.provinces;
+  const propertyTypeOptions = cfg.propertyTypes.length
+    ? cfg.propertyTypes
+    : OPTIONS.propertyTypes;
+  const durationOptions = cfg.durationHours.length
+    ? cfg.durationHours
+    : OPTIONS.durationHours;
+  const numberCleaningsOptions = cfg.numberOfCleanings.length
+    ? cfg.numberOfCleanings
+    : OPTIONS.numberCleanings;
+  const extrasColOptions = cfg.extrasCols.length
+    ? cfg.extrasCols
+    : OPTIONS.extrasCols;
   const renewOptions = cfg.renewPlans.length ? cfg.renewPlans : ["Yes", "No"];
-  const serviceTypeOptions = cfg.serviceTypes.length ? cfg.serviceTypes : OPTIONS.serviceTypes;
+  const serviceTypeOptions = cfg.serviceTypes.length
+    ? cfg.serviceTypes
+    : OPTIONS.serviceTypes;
 
   // ✅ City/Town dropdown depends on selected Province
   const cityOptions = useMemo(() => {
@@ -172,7 +192,10 @@ export default function FormShell() {
     const n = Number(numberCleanings || 0);
     const base = ["None"];
     if (!n) return base;
-    const rows = Array.from({ length: Math.min(n, 12) }, (_, i) => `Cleaning ${i + 1}`);
+    const rows = Array.from(
+      { length: Math.min(n, 12) },
+      (_, i) => `Cleaning ${i + 1}`
+    );
     return [...base, ...rows, "All cleanings"];
   }, [numberCleanings]);
 
@@ -193,7 +216,7 @@ export default function FormShell() {
       if (action === "hire") return true;
 
       // ✅ plans flow now requires plan + modifyAction
-      if (action === "plans") return !!selectedPlanRow && !!modifyAction;
+      if (action === "plans") return !!selectedPlanId && !!modifyAction;
 
       return false;
     }
@@ -232,9 +255,12 @@ export default function FormShell() {
     setPlansLoading(true);
 
     try {
-      const res = await fetch(`/api/duo/plans?email=${encodeURIComponent(email.trim())}`);
+      const res = await fetch(
+        `/api/duo/plans?email=${encodeURIComponent(email.trim())}`
+      );
       const data = await res.json();
-      if (!res.ok || !data.ok) throw new Error(data?.error || "Failed to load plans");
+      if (!res.ok || !data.ok)
+        throw new Error(data?.error || "Failed to load plans");
       setPlans(data.plans || []);
     } catch (e) {
       setMsg(e.message);
@@ -245,10 +271,9 @@ export default function FormShell() {
 
   // ✅ Prefill steps from selected plan row data (Registered → plans flow)
   function prefillFromSelectedPlan_() {
-    const rowNum = Number(selectedPlanRow || 0);
-    if (!rowNum) return;
-
-    const plan = plans.find((p) => Number(p._rowNumber) === rowNum);
+    const id = selectedPlanId;
+    if (!id) return;
+    const plan = plans.find((p) => p.id === id);
     if (!plan) return;
 
     // Address
@@ -300,7 +325,8 @@ export default function FormShell() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          rowNumber: Number(selectedPlanRow || 0),
+          // rowNumber: Number(selectedPlanRow || 0),
+          id: selectedPlanId,
           updateMode, // address | plan | schedule | additional
           payload,
         }),
@@ -320,7 +346,7 @@ export default function FormShell() {
       setPhone("");
       setAction("");
 
-      setSelectedPlanRow("");
+      setSelectedPlanId("");
       setModifyAction("");
 
       setProvince("");
@@ -358,7 +384,12 @@ export default function FormShell() {
     try {
       const payload = {
         userType: userType === "new" ? "New" : "Registered",
-        flowAction: action === "hire" ? "Hire cleaning services" : action === "plans" ? "View Active Plans" : "",
+        flowAction:
+          action === "hire"
+            ? "Hire cleaning services"
+            : action === "plans"
+            ? "View Active Plans"
+            : "",
 
         email,
         fullName: userType === "new" ? fullName : "",
@@ -393,7 +424,7 @@ export default function FormShell() {
       setPhone("");
       setAction("");
 
-      setSelectedPlanRow("");
+      setSelectedPlanId("");
       setModifyAction("");
 
       setProvince("");
@@ -482,11 +513,15 @@ export default function FormShell() {
 
         {/* Message */}
         {msg ? (
-          <div className="mt-4 rounded-xl border border-zinc-800 bg-zinc-950/50 p-3 text-sm">{msg}</div>
+          <div className="mt-4 rounded-xl border border-zinc-800 bg-zinc-950/50 p-3 text-sm">
+            {msg}
+          </div>
         ) : null}
 
         {/* ✅ Steps */}
-        {step === 1 && <Step1UserType userType={userType} setUserType={setUserType} />}
+        {step === 1 && (
+          <Step1UserType userType={userType} setUserType={setUserType} />
+        )}
 
         {step === 2 && (
           <Step2Email
@@ -503,8 +538,8 @@ export default function FormShell() {
             plans={plans}
             fetchPlans={fetchPlans}
             // ✅ NEW
-            selectedPlanRow={selectedPlanRow}
-            setSelectedPlanRow={setSelectedPlanRow}
+            selectedPlanId={selectedPlanId}
+            setSelectedPlanId={setSelectedPlanId}
             modifyAction={modifyAction}
             setModifyAction={setModifyAction}
           />
@@ -603,7 +638,11 @@ export default function FormShell() {
               disabled={!canSubmitStep6() || saving}
               className="ml-auto rounded-xl bg-white px-4 py-2 text-sm font-semibold text-black hover:bg-zinc-200 disabled:opacity-60"
             >
-              {saving ? "Saving..." : userType === "registered" && action === "plans" ? "Update" : TEXT.submit}
+              {saving
+                ? "Saving..."
+                : userType === "registered" && action === "plans"
+                ? "Update"
+                : TEXT.submit}
             </button>
           )}
         </div>
