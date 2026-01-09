@@ -69,6 +69,22 @@ function joinCSV_(arr) {
     .join(", ");
 }
 
+// ✅ Simple validators (keep it small + practical)
+function isValidEmail_(value) {
+  const v = String(value || "").trim();
+  if (!v) return false;
+  // simple, safe regex (not over-strict)
+  return /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(v);
+}
+
+function isValidPhone_(value) {
+  const v = String(value || "").trim();
+  if (!v) return false;
+  // allow +, spaces, hyphen; validate by digits count
+  const digits = v.replace(/[^\d]/g, "");
+  return digits.length >= 7 && digits.length <= 15;
+}
+
 export default function FormShell() {
   // =========================================================
   // STEP FLOW STATE
@@ -200,7 +216,7 @@ export default function FormShell() {
   }, [numberCleanings]);
 
   // =========================================================
-  // VALIDATION
+  // VALIDATION (existing boolean validators)
   // =========================================================
   function canNextStep1() {
     return userType === "new" || userType === "registered";
@@ -246,6 +262,81 @@ export default function FormShell() {
     if (!cleaningInstructions.trim()) return false;
     if (!serviceType) return false;
     return true;
+  }
+
+  // ✅ NEW: Human-friendly error messages per step
+  function getStepError_(stepNum) {
+    // Step 1
+    if (stepNum === 1) {
+      if (!userType) return "Please select Email Type (New Email or Registered Email).";
+      return "";
+    }
+
+    // Step 2
+    if (stepNum === 2) {
+      if (!email.trim()) return "Please enter your email address.";
+      if (!isValidEmail_(email)) return "Please enter a valid email address (example: name@email.com).";
+
+      if (userType === "new") {
+        if (!fullName.trim()) return "Please enter your Name and Surname.";
+        if (!phone.trim()) return "Please enter your phone number.";
+        if (!isValidPhone_(phone)) return "Please enter a valid phone number.";
+        return "";
+      }
+
+      if (userType === "registered") {
+        if (!action) return "Please choose what action you want to take.";
+        if (action === "plans") {
+          if (!selectedPlanId) return "Please select a plan first (and pick an action).";
+          if (!modifyAction) return "Please choose what you want to change for the selected plan.";
+        }
+        return "";
+      }
+
+      return "";
+    }
+
+    // Step 3
+    if (stepNum === 3) {
+      if (!province) return "Please select a Province.";
+      if (!city) return "Please select a City/Town.";
+      if (!street.trim()) return "Please enter Street/Number.";
+      if (!details.trim()) return "Please enter Property details.";
+      if (!propertyType) return "Please select Property Type.";
+      return "";
+    }
+
+    // Step 4
+    if (stepNum === 4) {
+      if (!durationHours) return "Please select Duration of each cleaning.";
+      if (!numberCleanings) return "Please select Number of Cleanings.";
+      if (!renewOptions.includes(autoRenew)) return "Please choose Auto renew (Yes/No).";
+
+      const n = Number(numberCleanings || 0);
+      if (!n) return "Please select Number of Cleanings.";
+
+      for (let i = 0; i < n; i++) {
+        const label = `Cleaning ${i + 1}`;
+        const d = scheduleDates?.[i];
+        const t = scheduleTimes?.[i];
+        const ex = extrasByCleaning?.[label] || [];
+
+        if (!d) return `Please select Date for ${label}.`;
+        if (!t) return `Please select Time for ${label}.`;
+        if (!Array.isArray(ex) || ex.length === 0) return `Please select Extras for ${label} (choose “Nothing” if none).`;
+      }
+
+      return "";
+    }
+
+    // Step 5
+    if (stepNum === 5) {
+      if (!cleaningInstructions.trim()) return "Please fill Cleaning instructions.";
+      if (!serviceType) return "Please select Type of service to be performed.";
+      return "";
+    }
+
+    return "";
   }
 
   // =========================================================
@@ -323,16 +414,13 @@ export default function FormShell() {
   }
 
   // ✅ Instant jump handler (called by Step2 3-dots menu)
-  // IMPORTANT: This must be in FormShell so it can change steps.
   function onPlanActionSelect_(planId, actionKey) {
-    setAction("plans");              // keep flow
-    setSelectedPlanId(planId);       // set plan
-    setModifyAction(actionKey);      // set action
+    setAction("plans");
+    setSelectedPlanId(planId);
+    setModifyAction(actionKey);
 
-    // Prefill first (so next screens show correct data)
     prefillFromSelectedPlan_(planId);
 
-    // Jump instantly
     if (actionKey === "address") return setStep(3);
     if (actionKey === "plan") return setStep(4);
     if (actionKey === "schedule") return setStep(4);
@@ -378,7 +466,7 @@ export default function FormShell() {
     }
   }
 
-  // ✅ Submit (New User / Registered hire flow)
+  // ✅ Submit
   async function submitAll() {
     setMsg("");
     setSaving(true);
@@ -470,11 +558,19 @@ export default function FormShell() {
   }
 
   // =========================================================
-  // NAVIGATION (same behavior)
+  // NAVIGATION (same behavior, now with messages on click)
   // =========================================================
   function goNext() {
     setMsg("");
 
+    // ✅ show friendly message if invalid
+    const err = getStepError_(step);
+    if (err) {
+      setMsg(`❌ ${err}`);
+      return;
+    }
+
+    // ✅ existing flow (unchanged)
     if (step === 1 && canNextStep1()) return setStep(2);
 
     if (step === 2 && canNextStep2()) {
@@ -503,6 +599,15 @@ export default function FormShell() {
   }
 
   function onFinalSubmitClick() {
+    setMsg("");
+
+    // ✅ show message instead of disabling submit
+    const err = getStepError_(5);
+    if (err) {
+      setMsg(`❌ ${err}`);
+      return;
+    }
+
     if (userType === "registered" && action === "plans") return updateExistingPlan("all");
     return submitAll();
   }
@@ -517,8 +622,16 @@ export default function FormShell() {
   }
 
   // =========================================================
-  // ✅ UI: Bigger + more professional + responsive
+  // UI
   // =========================================================
+  const isNextBlocked =
+    (step === 1 && !canNextStep1()) ||
+    (step === 2 && !canNextStep2()) ||
+    (step === 3 && !canNextStep3()) ||
+    (step === 4 && !canNextStep4());
+
+  const isSubmitBlocked = !canSubmitFinal();
+
   return (
     <div className="min-h-screen w-full bg-gradient-to-b from-zinc-700 to-zinc-800 text-white px-4 py-10 sm:px-6">
       <div className="mx-auto w-full max-w-5xl min-h-[800px]">
@@ -562,12 +675,13 @@ export default function FormShell() {
               setAction={setAction}
               plansLoading={plansLoading}
               plans={plans}
-              fetchPlans={fetchPlans} // used by Step2 auto-fetch + optional manual retry
+              fetchPlans={fetchPlans}
               selectedPlanId={selectedPlanId}
               setSelectedPlanId={setSelectedPlanId}
               modifyAction={modifyAction}
               setModifyAction={setModifyAction}
-              onPlanActionSelect={onPlanActionSelect_} // ✅ 3-dots -> instant jump
+              onPlanActionSelect={onPlanActionSelect_}
+              setMsg={setMsg}
             />
           )}
 
@@ -639,13 +753,12 @@ export default function FormShell() {
               <button
                 type="button"
                 onClick={goNext}
-                disabled={
-                  (step === 1 && !canNextStep1()) ||
-                  (step === 2 && !canNextStep2()) ||
-                  (step === 3 && !canNextStep3()) ||
-                  (step === 4 && !canNextStep4())
-                }
-                className="w-full sm:w-auto sm:ml-auto rounded-2xl bg-white px-6 py-3 text-base font-semibold text-black hover:bg-zinc-200 disabled:opacity-60 cursor-pointer"
+                // ✅ keep clickable for showing msg
+                aria-disabled={isNextBlocked}
+                className={[
+                  "w-full sm:w-auto sm:ml-auto rounded-2xl bg-white px-6 py-3 text-base font-semibold text-black hover:bg-zinc-200 cursor-pointer",
+                  isNextBlocked ? "opacity-60" : "",
+                ].join(" ")}
               >
                 {TEXT.next}
               </button>
@@ -653,8 +766,14 @@ export default function FormShell() {
               <button
                 type="button"
                 onClick={onFinalSubmitClick}
-                disabled={!canSubmitFinal() || saving}
-                className="w-full sm:w-auto sm:ml-auto rounded-2xl bg-white px-6 py-3 text-base font-semibold text-black hover:bg-zinc-200 disabled:opacity-60 cursor-pointer"
+                // ✅ allow click for message, only block while saving
+                disabled={saving}
+                aria-disabled={isSubmitBlocked || saving}
+                className={[
+                  "w-full sm:w-auto sm:ml-auto rounded-2xl bg-white px-6 py-3 text-base font-semibold text-black hover:bg-zinc-200 cursor-pointer",
+                  isSubmitBlocked ? "opacity-60" : "",
+                  saving ? "opacity-60" : "",
+                ].join(" ")}
               >
                 {saving ? "Saving..." : userType === "registered" && action === "plans" ? "Update" : TEXT.submit}
               </button>

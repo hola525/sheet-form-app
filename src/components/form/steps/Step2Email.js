@@ -267,6 +267,7 @@ export default function Step2Email({
 
   // ✅ NEW: 3-dots menu -> instant jump
   onPlanActionSelect,
+  setMsg
 }) {
   // Which plan menu is open
   const [openMenuId, setOpenMenuId] = useState("");
@@ -418,6 +419,7 @@ export default function Step2Email({
                 <div className="mt-4 space-y-3">
                   {plans.map((p) => {
                     const id = p.id;
+                    console.log("p---------->>>>>", p)
                     const isOpen = openMenuId === id;
 
                     return (
@@ -438,6 +440,8 @@ export default function Step2Email({
 
                           // close menu
                           setOpenMenuId("");
+                         setMsg("")
+
                         }}
                       />
                     );
