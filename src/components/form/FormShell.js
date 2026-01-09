@@ -181,10 +181,8 @@ export default function FormShell() {
   const renewOptions = cfg.renewPlans.length ? cfg.renewPlans : ["Yes", "No"];
   const serviceTypeOptions = cfg.serviceTypes.length ? cfg.serviceTypes : OPTIONS.serviceTypes;
 
-  // ✅ Extras checkbox list (fixed list)
   const extrasCheckboxOptions = cfg.extrasCols.length ? cfg.extrasCols : OPTIONS.extrasCols;
 
-  // ✅ City/Town dropdown depends on selected Province
   const cityOptions = useMemo(() => {
     if (!province) return [];
     const dynamic = cfg.citiesByProvince?.[province];
@@ -193,7 +191,7 @@ export default function FormShell() {
   }, [province, cfg.citiesByProvince]);
 
   // =========================================================
-  // Derived: cleaning labels (based on numberCleanings)
+  // Derived: cleaning labels
   // =========================================================
   const cleaningLabels = useMemo(() => {
     const n = Number(numberCleanings || 0);
@@ -218,7 +216,6 @@ export default function FormShell() {
       if (action === "plans") return !!selectedPlanId && !!modifyAction;
       return false;
     }
-
     return false;
   }
 
@@ -271,41 +268,7 @@ export default function FormShell() {
     }
   }
 
-  // ✅ AUTO-FETCH PLANS (no refresh button needed)
-  // - Runs when: registered + action=plans + email changes
-  // - Debounced to avoid calling API on every single keystroke
-  const autoFetchTimerRef = useRef(null);
-  useEffect(() => {
-    // Only auto fetch in registered plans flow
-    if (!(userType === "registered" && action === "plans")) return;
-
-    const trimmed = email.trim();
-    if (!trimmed) {
-      setPlans([]);
-      setPlansLoading(false);
-      // keep action selected (DON'T uncheck radio)
-      setSelectedPlanId("");
-      setModifyAction("");
-      return;
-    }
-
-    // Clear selection when email changes, but keep action selected
-    setSelectedPlanId("");
-    setModifyAction("");
-
-    // debounce
-    if (autoFetchTimerRef.current) clearTimeout(autoFetchTimerRef.current);
-    autoFetchTimerRef.current = setTimeout(() => {
-      fetchPlans();
-    }, 450);
-
-    return () => {
-      if (autoFetchTimerRef.current) clearTimeout(autoFetchTimerRef.current);
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [email, userType, action]);
-
-  // ✅ Prefill (keep compatible; now accepts forced id so 3-dots can jump)
+  // ✅ Prefill (keep compatible; accepts forced id so Step2 can instantly jump)
   function prefillFromSelectedPlan_(forcedId) {
     const id = forcedId || selectedPlanId;
     if (!id) return;
@@ -360,13 +323,13 @@ export default function FormShell() {
   }
 
   // ✅ Instant jump handler (called by Step2 3-dots menu)
+  // IMPORTANT: This must be in FormShell so it can change steps.
   function onPlanActionSelect_(planId, actionKey) {
-    // Keep same flow
-    setAction("plans");
-    setSelectedPlanId(planId);
-    setModifyAction(actionKey);
+    setAction("plans");              // keep flow
+    setSelectedPlanId(planId);       // set plan
+    setModifyAction(actionKey);      // set action
 
-    // Prefill BEFORE jump
+    // Prefill first (so next screens show correct data)
     prefillFromSelectedPlan_(planId);
 
     // Jump instantly
@@ -376,7 +339,7 @@ export default function FormShell() {
     if (actionKey === "additional") return setStep(5);
   }
 
-  // ✅ Update existing row (Registered plans modify flow)
+  // ✅ Update existing row
   async function updateExistingPlan(updateMode) {
     setMsg("");
     setSaving(true);
@@ -432,17 +395,21 @@ export default function FormShell() {
             : action === "plans"
             ? "View Active Plans"
             : "",
+
         email,
         fullName: userType === "new" ? fullName : "",
         phone: userType === "new" ? phone : "",
+
         address: { province, city, street, details, propertyType },
         plan: { durationHours, numberCleanings, autoRenew },
+
         schedule: {
           date: scheduleDateCSV,
           time: scheduleTimeCSV,
           timeWindow: timeWindow || "",
           extras: extrasByCleaning,
         },
+
         additional: { cleaningInstructions, favoriteDuo, serviceType },
       };
 
@@ -503,7 +470,7 @@ export default function FormShell() {
   }
 
   // =========================================================
-  // NAVIGATION (same behavior as before)
+  // NAVIGATION (same behavior)
   // =========================================================
   function goNext() {
     setMsg("");
@@ -549,133 +516,150 @@ export default function FormShell() {
     setExtras({});
   }
 
+  // =========================================================
+  // ✅ UI: Bigger + more professional + responsive
+  // =========================================================
   return (
-    <div className="min-h-screen bg-gray-600 text-white flex items-center justify-center p-6">
-      <div className="w-full max-w-xl rounded-2xl border border-zinc-800 bg-zinc-950/40 p-6">
-        {/* Header */}
-        <h1 className="text-xl font-semibold">{TEXT.title}</h1>
-        <p className="mt-1 text-sm text-zinc-400">{TEXT.step(step)}</p>
+    <div className="min-h-screen w-full bg-gradient-to-b from-zinc-700 to-zinc-800 text-white px-4 py-10 sm:px-6">
+      <div className="mx-auto w-full max-w-3xl">
+        <div className="rounded-3xl border border-zinc-700/60 bg-zinc-950/40 shadow-xl backdrop-blur px-5 py-6 sm:px-8 sm:py-8">
+          {/* Header */}
+          <div className="flex items-start justify-between gap-4">
+            <div>
+              <h1 className="text-2xl sm:text-3xl font-semibold tracking-tight">
+                {TEXT.title}
+              </h1>
+              <p className="mt-1 text-base sm:text-lg text-zinc-300">
+                {TEXT.step(step)}
+              </p>
+            </div>
 
-        {/* Message */}
-        {msg ? (
-          <div className="mt-4 rounded-xl border border-zinc-800 bg-zinc-950/50 p-3 text-sm">
-            {msg}
+            <div className="rounded-2xl border border-zinc-700/60 bg-black/20 px-3 py-2 text-sm sm:text-base text-zinc-200">
+              Progress: <span className="font-semibold">{step}</span>/5
+            </div>
           </div>
-        ) : null}
 
-        {/* ✅ Steps */}
-        {step === 1 && <Step1UserType userType={userType} setUserType={setUserType} />}
+          {/* Message */}
+          {msg ? (
+            <div className="mt-5 rounded-2xl border border-zinc-700/60 bg-black/30 px-4 py-3 text-sm sm:text-base">
+              {msg}
+            </div>
+          ) : null}
 
-        {step === 2 && (
-          <Step2Email
-            userType={userType}
-            email={email}
-            setEmail={setEmail}
-            fullName={fullName}
-            setFullName={setFullName}
-            phone={phone}
-            setPhone={setPhone}
-            action={action}
-            setAction={setAction}
-            plansLoading={plansLoading}
-            plans={plans}
-            fetchPlans={fetchPlans} // still available as manual refresh if needed
-            selectedPlanId={selectedPlanId}
-            setSelectedPlanId={setSelectedPlanId}
-            modifyAction={modifyAction}
-            setModifyAction={setModifyAction}
-            onPlanActionSelect={onPlanActionSelect_} // ✅ 3-dots -> instant jump
-          />
-        )}
+          {/* Steps */}
+          {step === 1 && <Step1UserType userType={userType} setUserType={setUserType} />}
 
-        {step === 3 && (
-          <Step3Address
-            province={province}
-            setProvince={setProvince}
-            city={city}
-            setCity={setCity}
-            street={street}
-            setStreet={setStreet}
-            details={details}
-            setDetails={setDetails}
-            propertyType={propertyType}
-            setPropertyType={setPropertyType}
-            provinceOptions={provinceOptions}
-            cityOptions={cityOptions}
-            propertyTypeOptions={propertyTypeOptions}
-          />
-        )}
-
-        {step === 4 && (
-          <Step4Plan
-            durationHours={durationHours}
-            setDurationHours={setDurationHours}
-            numberCleanings={numberCleanings}
-            setNumberCleanings={setNumberCleanings}
-            autoRenew={autoRenew}
-            setAutoRenew={setAutoRenew}
-            durationOptions={durationOptions}
-            numberCleaningsOptions={numberCleaningsOptions}
-            renewOptions={renewOptions}
-            onChangeNumberCleanings={onChangeNumberCleanings_}
-            cleaningLabels={cleaningLabels}
-            scheduleDates={scheduleDates}
-            setScheduleDates={setScheduleDates}
-            scheduleTimes={scheduleTimes}
-            setScheduleTimes={setScheduleTimes}
-            extrasByCleaning={extrasByCleaning}
-            setExtrasByCleaning={setExtrasByCleaning}
-            extrasCheckboxOptions={extrasCheckboxOptions}
-          />
-        )}
-
-        {step === 5 && (
-          <Step6Additional
-            cleaningInstructions={cleaningInstructions}
-            setCleaningInstructions={setCleaningInstructions}
-            favoriteDuo={favoriteDuo}
-            setFavoriteDuo={setFavoriteDuo}
-            serviceType={serviceType}
-            setServiceType={setServiceType}
-            serviceTypeOptions={serviceTypeOptions}
-          />
-        )}
-
-        {/* Footer buttons */}
-        <div className="mt-6 flex gap-3">
-          <button
-            type="button"
-            onClick={goBack}
-            disabled={step === 1}
-            className="rounded-xl border border-zinc-700 px-4 py-2 text-sm disabled:opacity-50"
-          >
-            {TEXT.back}
-          </button>
-
-          {step < 5 ? (
-            <button
-              type="button"
-              onClick={goNext}
-              disabled={
-                (step === 1 && !canNextStep1()) ||
-                (step === 2 && !canNextStep2()) ||
-                (step === 3 && !canNextStep3()) ||
-                (step === 4 && !canNextStep4())
-              }
-              className="ml-auto rounded-xl bg-white px-4 py-2 text-sm font-semibold text-black hover:bg-zinc-200 disabled:opacity-60"
-            >
-              {TEXT.next}
-            </button>
-          ) : (
-            <button
-              type="button"
-              onClick={onFinalSubmitClick}
-              disabled={!canSubmitFinal() || saving}
-              className="ml-auto rounded-xl bg-white px-4 py-2 text-sm font-semibold text-black hover:bg-zinc-200 disabled:opacity-60"
-            >
-              {saving ? "Saving..." : userType === "registered" && action === "plans" ? "Update" : TEXT.submit}
-            </button>
+          {step === 2 && (
+            <Step2Email
+              userType={userType}
+              email={email}
+              setEmail={setEmail}
+              fullName={fullName}
+              setFullName={setFullName}
+              phone={phone}
+              setPhone={setPhone}
+              action={action}
+              setAction={setAction}
+              plansLoading={plansLoading}
+              plans={plans}
+              fetchPlans={fetchPlans} // used by Step2 auto-fetch + optional manual retry
+              selectedPlanId={selectedPlanId}
+              setSelectedPlanId={setSelectedPlanId}
+              modifyAction={modifyAction}
+              setModifyAction={setModifyAction}
+              onPlanActionSelect={onPlanActionSelect_} // ✅ 3-dots -> instant jump
+            />
           )}
+
+          {step === 3 && (
+            <Step3Address
+              province={province}
+              setProvince={setProvince}
+              city={city}
+              setCity={setCity}
+              street={street}
+              setStreet={setStreet}
+              details={details}
+              setDetails={setDetails}
+              propertyType={propertyType}
+              setPropertyType={setPropertyType}
+              provinceOptions={provinceOptions}
+              cityOptions={cityOptions}
+              propertyTypeOptions={propertyTypeOptions}
+            />
+          )}
+
+          {step === 4 && (
+            <Step4Plan
+              durationHours={durationHours}
+              setDurationHours={setDurationHours}
+              numberCleanings={numberCleanings}
+              setNumberCleanings={setNumberCleanings}
+              autoRenew={autoRenew}
+              setAutoRenew={setAutoRenew}
+              durationOptions={durationOptions}
+              numberCleaningsOptions={numberCleaningsOptions}
+              renewOptions={renewOptions}
+              onChangeNumberCleanings={onChangeNumberCleanings_}
+              cleaningLabels={cleaningLabels}
+              scheduleDates={scheduleDates}
+              setScheduleDates={setScheduleDates}
+              scheduleTimes={scheduleTimes}
+              setScheduleTimes={setScheduleTimes}
+              extrasByCleaning={extrasByCleaning}
+              setExtrasByCleaning={setExtrasByCleaning}
+              extrasCheckboxOptions={extrasCheckboxOptions}
+            />
+          )}
+
+          {step === 5 && (
+            <Step6Additional
+              cleaningInstructions={cleaningInstructions}
+              setCleaningInstructions={setCleaningInstructions}
+              favoriteDuo={favoriteDuo}
+              setFavoriteDuo={setFavoriteDuo}
+              serviceType={serviceType}
+              setServiceType={setServiceType}
+              serviceTypeOptions={serviceTypeOptions}
+            />
+          )}
+
+          {/* Footer buttons */}
+          <div className="mt-8 flex flex-col-reverse gap-3 sm:flex-row sm:items-center">
+            <button
+              type="button"
+              onClick={goBack}
+              disabled={step === 1}
+              className="w-full sm:w-auto rounded-2xl border border-zinc-700/70 bg-black/20 px-5 py-3 text-base font-medium disabled:opacity-50"
+            >
+              {TEXT.back}
+            </button>
+
+            {step < 5 ? (
+              <button
+                type="button"
+                onClick={goNext}
+                disabled={
+                  (step === 1 && !canNextStep1()) ||
+                  (step === 2 && !canNextStep2()) ||
+                  (step === 3 && !canNextStep3()) ||
+                  (step === 4 && !canNextStep4())
+                }
+                className="w-full sm:w-auto sm:ml-auto rounded-2xl bg-white px-6 py-3 text-base font-semibold text-black hover:bg-zinc-200 disabled:opacity-60"
+              >
+                {TEXT.next}
+              </button>
+            ) : (
+              <button
+                type="button"
+                onClick={onFinalSubmitClick}
+                disabled={!canSubmitFinal() || saving}
+                className="w-full sm:w-auto sm:ml-auto rounded-2xl bg-white px-6 py-3 text-base font-semibold text-black hover:bg-zinc-200 disabled:opacity-60"
+              >
+                {saving ? "Saving..." : userType === "registered" && action === "plans" ? "Update" : TEXT.submit}
+              </button>
+            )}
+          </div>
         </div>
       </div>
     </div>
