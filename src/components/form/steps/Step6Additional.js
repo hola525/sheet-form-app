@@ -1,60 +1,186 @@
 // ✅ FILE: app/duo/steps/Step6Additional.js
+// UI-only upgrade (same theme rules as Step 1/3/4)
+// ✅ Mobile responsive
+// ✅ Bigger fonts + better spacing
+// ✅ Smooth transitions + focus rings + cursor pointer
+// ✅ NO logic changes
+
+const THEME = {
+  cardBg: "bg-black/25",
+  cardBorder: "border-zinc-700/60",
+
+  textTitle: "text-zinc-100",
+  textSub: "text-zinc-300",
+  textMuted: "text-zinc-400",
+
+  focusRing:
+    "focus-visible:ring-2 focus-visible:ring-white/40 focus-visible:ring-offset-0",
+};
+
+function SectionCard({ title, subtitle, rightSlot, children }) {
+  return (
+    <div
+      className={[
+        "mt-7 rounded-2xl border p-5 sm:p-6",
+        THEME.cardBorder,
+        THEME.cardBg,
+        "transition-all duration-200 ease-in-out",
+      ].join(" ")}
+    >
+      <div className="flex items-start justify-between gap-4">
+        <div className="min-w-0">
+          <div className={["text-base sm:text-lg font-semibold", THEME.textTitle].join(" ")}>
+            {title}
+          </div>
+          {subtitle ? (
+            <div className={["mt-1 text-sm sm:text-base", THEME.textSub].join(" ")}>
+              {subtitle}
+            </div>
+          ) : null}
+        </div>
+
+        {rightSlot ? <div className="shrink-0">{rightSlot}</div> : null}
+      </div>
+
+      <div className="mt-5">{children}</div>
+    </div>
+  );
+}
+
+function FieldLabel({ children }) {
+  return (
+    <label className={["text-sm sm:text-base font-medium", THEME.textSub].join(" ")}>
+      {children}
+    </label>
+  );
+}
+
+function TextInput({ value, onChange, placeholder = "" }) {
+  return (
+    <input
+      value={value}
+      onChange={onChange}
+      placeholder={placeholder}
+      className={[
+        "mt-2 w-full rounded-2xl border px-4 py-3 sm:py-3.5",
+        "text-base sm:text-lg",
+        "bg-black/30 outline-none",
+        "transition-all duration-200 ease-in-out",
+        "cursor-text",
+        THEME.cardBorder,
+        "focus:border-white/40",
+        THEME.focusRing,
+      ].join(" ")}
+    />
+  );
+}
+
+function TextArea({ value, onChange, placeholder = "", rows = 4 }) {
+  return (
+    <textarea
+      rows={rows}
+      value={value}
+      onChange={onChange}
+      placeholder={placeholder}
+      className={[
+        "mt-2 w-full rounded-2xl border px-4 py-3 sm:py-3.5",
+        "text-base sm:text-lg",
+        "bg-black/30 outline-none",
+        "transition-all duration-200 ease-in-out",
+        "cursor-text",
+        THEME.cardBorder,
+        "focus:border-white/40",
+        THEME.focusRing,
+        "resize-y",
+      ].join(" ")}
+    />
+  );
+}
+
+function SelectField({ value, onChange, children }) {
+  return (
+    <select
+      value={value}
+      onChange={onChange}
+      className={[
+        "mt-2 w-full rounded-2xl border px-4 py-3 sm:py-3.5",
+        "text-base sm:text-lg",
+        "bg-black/30 outline-none",
+        "transition-all duration-200 ease-in-out",
+        "cursor-pointer",
+        THEME.cardBorder,
+        "focus:border-white/40",
+        THEME.focusRing,
+      ].join(" ")}
+    >
+      {children}
+    </select>
+  );
+}
+
 export default function Step6Additional({
-    cleaningInstructions,
-    setCleaningInstructions,
-    favoriteDuo,
-    setFavoriteDuo,
-    serviceType,
-    setServiceType,
-    serviceTypeOptions,
-  }) {
-    return (
-      <div className="mt-6 space-y-4">
-        <div className="rounded-xl border border-zinc-800 bg-black/30 p-4">
-          <div className="text-sm font-semibold">ADDITIONAL INSTRUCTIONS</div>
-  
-          <p className="mt-2 text-sm text-zinc-400">
-            Tell us any details that are important for the Duo0 who will be performing the cleaning.
-          </p>
-  
-          <div className="mt-4 space-y-4">
-            <div>
-              <label className="text-sm text-zinc-300">Cleaning instructions *</label>
-              <textarea
-                className="mt-1 w-full rounded-xl border border-zinc-800 bg-black/40 px-3 py-2 text-sm outline-none focus:border-zinc-600"
-                rows={3}
-                value={cleaningInstructions}
-                onChange={(e) => setCleaningInstructions(e.target.value)}
-                placeholder="Write any important notes…"
-              />
+  cleaningInstructions,
+  setCleaningInstructions,
+  favoriteDuo,
+  setFavoriteDuo,
+  serviceType,
+  setServiceType,
+  serviceTypeOptions,
+}) {
+  return (
+    <div className="space-y-4">
+      <SectionCard
+        title="Additional instructions *"
+        subtitle="Tell us any details that are important for the Duo0 who will be performing the cleaning."
+        rightSlot={
+          <div className="hidden sm:block rounded-full border border-white/10 bg-black/20 px-3 py-1 text-xs text-white/70">
+            Step 5 of 5
+          </div>
+        }
+      >
+        <div className="grid gap-4 sm:gap-5">
+          {/* Cleaning instructions */}
+          <div>
+            <FieldLabel>Cleaning instructions *</FieldLabel>
+            <TextArea
+              rows={4}
+              value={cleaningInstructions}
+              onChange={(e) => setCleaningInstructions(e.target.value)}
+              placeholder="Write any important notes…"
+            />
+            <div className={["mt-2 text-xs sm:text-sm", THEME.textMuted].join(" ")}>
+              Example: pets at home, key instructions, parking details, fragile items, etc.
             </div>
-  
-            <div>
-              <label className="text-sm text-zinc-300">Favorite Duo0</label>
-              <input
-                className="mt-1 w-full rounded-xl border border-zinc-800 bg-black/40 px-3 py-2 text-sm outline-none focus:border-zinc-600"
-                value={favoriteDuo}
-                onChange={(e) => setFavoriteDuo(e.target.value)}
-                placeholder="Optional"
-              />
-            </div>
-  
-            <div>
-              <label className="text-sm text-zinc-300">Type of service to be performed *</label>
-              <select
-                className="mt-1 w-full rounded-xl border border-zinc-800 bg-black/40 px-3 py-2 text-sm outline-none focus:border-zinc-600"
-                value={serviceType}
-                onChange={(e) => setServiceType(e.target.value)}
-              >
-                <option value="">Choose</option>
-                {serviceTypeOptions.map((s) => (
-                  <option key={s} value={s}>{s}</option>
-                ))}
-              </select>
+          </div>
+
+          {/* Favorite Duo */}
+          <div>
+            <FieldLabel>Favorite Duo0</FieldLabel>
+            <TextInput
+              value={favoriteDuo}
+              onChange={(e) => setFavoriteDuo(e.target.value)}
+              placeholder="Optional"
+            />
+          </div>
+
+          {/* Service type */}
+          <div>
+            <FieldLabel>Type of service to be performed *</FieldLabel>
+            <SelectField value={serviceType} onChange={(e) => setServiceType(e.target.value)}>
+              <option value="">Choose</option>
+              {serviceTypeOptions.map((s) => (
+                <option key={s} value={s}>
+                  {s}
+                </option>
+              ))}
+            </SelectField>
+
+            <div className={["mt-2 text-xs sm:text-sm", THEME.textMuted].join(" ")}>
+              Pick the option that best matches the cleaning request.
             </div>
           </div>
         </div>
-      </div>
-    );
-  }
-  
+      </SectionCard>
+    </div>
+  );
+}

@@ -1,18 +1,190 @@
 // ✅ FILE: app/duo/steps/Step4Plan.js
+// UI-only upgrade (same style rules as Step 1 & Step 3)
+// ✅ Mobile responsive
+// ✅ Bigger fonts + better spacing
+// ✅ Smooth transitions + focus rings + cursor pointer
+// ✅ Scroll ONLY in "Schedule & Extras" section when many cleanings
+// ✅ NO business logic change
 
 // --- helpers (date-only compare, no timezone headaches) ---
 function todayISO_() {
-  // "YYYY-MM-DD"
-  return new Date().toISOString().slice(0, 10);
+  return new Date().toISOString().slice(0, 10); // "YYYY-MM-DD"
 }
-
 function isPastDate_(yyyyMmDd) {
   const d = String(yyyyMmDd || "").trim();
   if (!d) return false;
+  return d < todayISO_(); // lexicographic works for YYYY-MM-DD
+}
 
-  // Compare as strings because YYYY-MM-DD is lexicographically sortable
-  // "2026-01-08" < "2026-01-09" ✅
-  return d < todayISO_();
+const THEME = {
+  cardBg: "bg-black/25",
+  cardBorder: "border-zinc-700/60",
+  innerBg: "bg-black/20",
+  innerBorder: "border-zinc-700/60",
+
+  textTitle: "text-zinc-100",
+  textSub: "text-zinc-300",
+  textMuted: "text-zinc-400",
+
+  focusRing:
+    "focus-visible:ring-2 focus-visible:ring-white/40 focus-visible:ring-offset-0",
+};
+
+function SectionCard({ title, subtitle, rightSlot, children }) {
+  return (
+    <div
+      className={[
+        "mt-7 rounded-2xl border p-5 sm:p-6",
+        THEME.cardBorder,
+        THEME.cardBg,
+        "transition-all duration-200 ease-in-out",
+      ].join(" ")}
+    >
+      <div className="flex items-start justify-between gap-4">
+        <div className="min-w-0">
+          <div className={["text-base sm:text-lg font-semibold", THEME.textTitle].join(" ")}>
+            {title}
+          </div>
+          {subtitle ? (
+            <div className={["mt-1 text-sm sm:text-base", THEME.textSub].join(" ")}>
+              {subtitle}
+            </div>
+          ) : null}
+        </div>
+        {rightSlot ? <div className="shrink-0">{rightSlot}</div> : null}
+      </div>
+
+      <div className="mt-5">{children}</div>
+    </div>
+  );
+}
+
+function FieldLabel({ children }) {
+  return (
+    <label className={["text-sm sm:text-base font-medium", THEME.textSub].join(" ")}>
+      {children}
+    </label>
+  );
+}
+
+function SelectField({ value, onChange, children }) {
+  return (
+    <select
+      value={value}
+      onChange={onChange}
+      className={[
+        "mt-2 w-full rounded-2xl border px-4 py-3 sm:py-3.5",
+        "text-base sm:text-lg",
+        "bg-black/30 outline-none",
+        "transition-all duration-200 ease-in-out",
+        "cursor-pointer",
+        THEME.cardBorder,
+        "focus:border-white/40",
+        THEME.focusRing,
+      ].join(" ")}
+    >
+      {children}
+    </select>
+  );
+}
+
+function InputField({ type, value, onChange, disabled, min }) {
+  return (
+    <input
+      type={type}
+      value={value}
+      onChange={onChange}
+      disabled={disabled}
+      min={min}
+      className={[
+        "mt-2 w-full rounded-2xl border px-4 py-3 sm:py-3.5",
+        "text-base sm:text-lg",
+        "bg-black/30 outline-none",
+        "transition-all duration-200 ease-in-out",
+        type === "date" || type === "time" ? "cursor-pointer" : "cursor-text",
+        THEME.cardBorder,
+        "focus:border-white/40",
+        THEME.focusRing,
+        disabled ? "opacity-60 cursor-not-allowed" : "",
+      ].join(" ")}
+    />
+  );
+}
+
+function RadioPill({ checked, label, onSelect }) {
+  return (
+    <button
+      type="button"
+      onClick={onSelect}
+      className={[
+        "group flex w-full items-center justify-between gap-3 rounded-2xl border px-4 py-3",
+        "transition-all duration-200 ease-in-out",
+        "cursor-pointer",
+        checked
+          ? "border-white/50 bg-white/10"
+          : "border-zinc-700/60 bg-black/20 hover:bg-black/30",
+        THEME.focusRing,
+      ].join(" ")}
+    >
+      <div className="flex items-center gap-3">
+        <span className="inline-flex h-6 w-6 items-center justify-center rounded-full border border-white/20 bg-black/30">
+          <span
+            className={[
+              "h-3.5 w-3.5 rounded-full transition-all duration-200 ease-in-out",
+              checked ? "bg-white opacity-100" : "bg-white opacity-0",
+            ].join(" ")}
+          />
+        </span>
+        <div className={["text-sm sm:text-base font-medium", THEME.textSub].join(" ")}>
+          {label}
+        </div>
+      </div>
+
+      <div
+        className={[
+          "rounded-full px-2 py-1 text-xs transition-all duration-200 ease-in-out",
+          checked ? "bg-white/10 text-white/90" : "bg-black/20 text-white/50",
+        ].join(" ")}
+      >
+        {checked ? "Selected" : "Select"}
+      </div>
+    </button>
+  );
+}
+
+function CheckboxItem({ checked, disabled, label, onToggle }) {
+  return (
+    <button
+      type="button"
+      disabled={disabled}
+      onClick={onToggle}
+      className={[
+        "group flex w-full items-center gap-3 rounded-xl border px-3 py-2 text-left",
+        "transition-all duration-200 ease-in-out",
+        disabled ? "opacity-60 cursor-not-allowed" : "cursor-pointer hover:bg-black/30",
+        "border-zinc-700/60 bg-black/20",
+        THEME.focusRing,
+      ].join(" ")}
+    >
+      <span
+        className={[
+          "flex min-h-5 min-w-5 items-center justify-center rounded-md border",
+          "transition-all duration-200 ease-in-out",
+          checked ? "border-white/40 bg-white/10" : "border-white/15 bg-black/30",
+        ].join(" ")}
+        aria-hidden="true"
+      >
+        <span
+          className={[
+            "min-h-2.5 min-w-2.5 rounded-sm transition-all duration-200 ease-in-out",
+            checked ? "bg-white opacity-100" : "bg-white opacity-0",
+          ].join(" ")}
+        />
+      </span>
+
+      <span className="text-sm sm:text-base text-white/85">{label}</span>
+    </button>
+  );
 }
 
 export default function Step4Plan({
@@ -28,7 +200,7 @@ export default function Step4Plan({
   renewOptions,
   onChangeNumberCleanings,
 
-  // ✅ Schedule + extras per cleaning
+  // Schedule + extras
   cleaningLabels,
   scheduleDates,
   setScheduleDates,
@@ -54,10 +226,6 @@ export default function Step4Plan({
     });
   }
 
-  // Checkbox rules:
-  // - Can select multiple
-  // - "Nothing" becomes the only selected option
-  // - Selecting anything else removes "Nothing"
   function toggleExtra_(cleaningKey, extraName, locked) {
     if (locked) return;
 
@@ -97,34 +265,33 @@ export default function Step4Plan({
   const minDate = todayISO_();
 
   return (
-    <div className="mt-6 space-y-4">
-      <div className="rounded-xl border border-zinc-800 bg-black/30 p-4">
-        <div className="text-sm font-semibold">CLEANING PLAN</div>
-
+    <div className="space-y-4">
+      <SectionCard
+        title="Cleaning plan *"
+        subtitle="Choose your plan, then set schedule and extras for each cleaning."
+        rightSlot={
+          <div className="hidden sm:block rounded-full border border-white/10 bg-black/20 px-3 py-1 text-xs text-white/70">
+            Step 4 of 5
+          </div>
+        }
+      >
         {/* Plan fields */}
-        <div className="mt-3 space-y-4">
+        <div className="grid gap-4 sm:gap-5">
           <div>
-            <label className="text-sm text-zinc-300">
-              Duration of each cleaning (hours) *
-            </label>
-            <select
-              className="mt-1 w-full rounded-xl border border-zinc-800 bg-black/40 px-3 py-2 text-sm outline-none focus:border-zinc-600"
-              value={durationHours}
-              onChange={(e) => setDurationHours(e.target.value)}
-            >
+            <FieldLabel>Duration of each cleaning (hours) *</FieldLabel>
+            <SelectField value={durationHours} onChange={(e) => setDurationHours(e.target.value)}>
               <option value="">Select</option>
               {durationOptions.map((h) => (
                 <option key={h} value={h}>
                   {h}
                 </option>
               ))}
-            </select>
+            </SelectField>
           </div>
 
           <div>
-            <label className="text-sm text-zinc-300">Number of Cleanings *</label>
-            <select
-              className="mt-1 w-full rounded-xl border border-zinc-800 bg-black/40 px-3 py-2 text-sm outline-none focus:border-zinc-600"
+            <FieldLabel>Number of cleanings *</FieldLabel>
+            <SelectField
               value={numberCleanings}
               onChange={(e) => {
                 setNumberCleanings(e.target.value);
@@ -137,118 +304,153 @@ export default function Step4Plan({
                   {x}
                 </option>
               ))}
-            </select>
+            </SelectField>
           </div>
 
           <div>
-            <label className="text-sm text-zinc-300">Auto renew when expires? *</label>
-            <div className="mt-2 space-y-2 text-sm">
+            <FieldLabel>Auto renew when expires? *</FieldLabel>
+
+            <div className="mt-3 grid gap-3 sm:grid-cols-2">
               {renewOptions.slice(0, 2).map((opt) => (
-                <label key={opt} className="flex items-center gap-2">
-                  <input type="radio" checked={autoRenew === opt} onChange={() => setAutoRenew(opt)} />
-                  {opt}
-                </label>
+                <RadioPill
+                  key={opt}
+                  checked={autoRenew === opt}
+                  label={opt}
+                  onSelect={() => setAutoRenew(opt)}
+                />
               ))}
             </div>
           </div>
         </div>
 
-        {/* ✅ Schedule + extras per cleaning */}
+        {/* Schedule + Extras */}
         {n ? (
-          <div className="mt-6 rounded-xl border border-zinc-800 bg-black/20 p-4">
-            <div className="text-sm font-semibold">SCHEDULE & EXTRAS</div>
-            <div className="mt-1 text-xs text-zinc-400">
+          <div
+            className={[
+              "mt-6 rounded-2xl border p-4 sm:p-5",
+              THEME.innerBorder,
+              THEME.innerBg,
+            ].join(" ")}
+          >
+            <div className={["text-base sm:text-lg font-semibold", THEME.textTitle].join(" ")}>
+              Schedule & extras
+            </div>
+            <div className={["mt-1 text-xs sm:text-sm", THEME.textMuted].join(" ")}>
               If a cleaning date is already in the past, it is locked and cannot be edited.
             </div>
 
-            <div className="mt-4 space-y-4">
-              {cleaningLabels.map((label, idx) => {
-                const key = label; // "Cleaning 1"
-                const dateVal = scheduleDates?.[idx] || "";
-                const locked = isPastDate_(dateVal);
+            {/* ✅ Scroll only this section when too many cleanings */}
+            <div className="mt-4 max-h-[65vh] overflow-y-auto pr-1">
+              <div className="space-y-4">
+                {cleaningLabels.map((label, idx) => {
+                  const key = label; // "Cleaning 1"
+                  const dateVal = scheduleDates?.[idx] || "";
+                  const locked = isPastDate_(dateVal);
+                  const selectedExtras = extrasByCleaning?.[key] || [];
 
-                const selectedExtras = extrasByCleaning?.[key] || [];
+                  return (
+                    <div
+                      key={key}
+                      className={[
+                        "rounded-2xl border p-4",
+                        "transition-all duration-200 ease-in-out",
+                        THEME.innerBorder,
+                        "bg-black/25",
+                      ].join(" ")}
+                    >
+                      <div className="flex items-center justify-between gap-3">
+                        <div className="min-w-0">
+                          <div className={["text-base sm:text-lg font-semibold", THEME.textTitle].join(" ")}>
+                            {label}{" "}
+                            {locked ? (
+                              <span className="ml-2 text-xs sm:text-sm text-zinc-400">
+                                (Locked - past date)
+                              </span>
+                            ) : null}
+                          </div>
+                        </div>
 
-                return (
-                  <div key={key} className="rounded-xl border border-zinc-800 bg-black/30 p-3">
-                    <div className="flex items-center justify-between">
-                      <div className="text-sm font-semibold">
-                        {label}{" "}
-                        {locked ? <span className="text-xs text-zinc-400">(Locked - past date)</span> : null}
-                      </div>
-
-                      <button
-                        type="button"
-                        onClick={() => clearCleaning_(idx, locked)}
-                        disabled={locked}
-                        className="text-xs underline text-zinc-300 hover:text-white disabled:opacity-50"
-                      >
-                        Clear
-                      </button>
-                    </div>
-
-                    {/* Date + Time */}
-                    <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
-                      <div>
-                        <label className="text-sm text-zinc-300">Date *</label>
-                        <input
-                          type="date"
-                          min={minDate} // ✅ prevents selecting past dates for new edits
-                          className="mt-1 w-full rounded-xl border border-zinc-800 bg-black/40 px-3 py-2 text-sm outline-none focus:border-zinc-600 disabled:opacity-60"
-                          value={dateVal}
+                        <button
+                          type="button"
+                          onClick={() => clearCleaning_(idx, locked)}
                           disabled={locked}
-                          onChange={(e) => setDateAt_(idx, e.target.value)}
-                        />
+                          className={[
+                            "rounded-full border px-3 py-1 text-xs sm:text-sm",
+                            "transition-all duration-200 ease-in-out",
+                            locked
+                              ? "opacity-50 cursor-not-allowed border-zinc-700/50"
+                              : "cursor-pointer border-white/10 hover:bg-white/10",
+                            THEME.focusRing,
+                          ].join(" ")}
+                        >
+                          Clear
+                        </button>
                       </div>
 
-                      <div>
-                        <label className="text-sm text-zinc-300">Time *</label>
-                        <input
-                          type="time"
-                          className="mt-1 w-full rounded-xl border border-zinc-800 bg-black/40 px-3 py-2 text-sm outline-none focus:border-zinc-600 disabled:opacity-60"
-                          value={scheduleTimes?.[idx] || ""}
-                          disabled={locked}
-                          onChange={(e) => setTimeAt_(idx, e.target.value)}
-                        />
-                      </div>
-                    </div>
+                      {/* Date + Time */}
+                      <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2">
+                        <div>
+                          <FieldLabel>Date *</FieldLabel>
+                          <InputField
+                            type="date"
+                            min={minDate}
+                            value={dateVal}
+                            disabled={locked}
+                            onChange={(e) => setDateAt_(idx, e.target.value)}
+                          />
+                        </div>
 
-                    {/* Extras checkboxes */}
-                    <div className="mt-4">
-                      <div className="text-sm text-zinc-300 font-medium">
-                        Extras (select any) *
+                        <div>
+                          <FieldLabel>Time *</FieldLabel>
+                          <InputField
+                            type="time"
+                            value={scheduleTimes?.[idx] || ""}
+                            disabled={locked}
+                            onChange={(e) => setTimeAt_(idx, e.target.value)}
+                          />
+                        </div>
                       </div>
 
-                      <div className="mt-2 grid grid-cols-1 gap-2 sm:grid-cols-2">
-                        {extrasCheckboxOptions.map((opt) => {
-                          const checked = selectedExtras.includes(opt);
-                          return (
-                            <label key={opt} className="flex items-center gap-2 text-sm">
-                              <input
-                                type="checkbox"
+                      {/* Extras */}
+                      <div className="mt-5">
+                        <div className={["text-sm sm:text-base font-semibold", THEME.textSub].join(" ")}>
+                          Extras (select any) *
+                        </div>
+
+                        <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-2">
+                          {extrasCheckboxOptions.map((opt) => {
+                            const checked = selectedExtras.includes(opt);
+                            return (
+                              <CheckboxItem
+                                key={opt}
                                 checked={checked}
                                 disabled={locked}
-                                onChange={() => toggleExtra_(key, opt, locked)}
+                                label={opt}
+                                onToggle={() => toggleExtra_(key, opt, locked)}
                               />
-                              {opt}
-                            </label>
-                          );
-                        })}
-                      </div>
-
-                      {!locked && (!Array.isArray(selectedExtras) || selectedExtras.length === 0) ? (
-                        <div className="mt-2 text-xs text-zinc-400">
-                          Select at least one option (choose “Nothing” if no extras).
+                            );
+                          })}
                         </div>
-                      ) : null}
+
+                        {!locked &&
+                        (!Array.isArray(selectedExtras) || selectedExtras.length === 0) ? (
+                          <div className={["mt-3 text-xs sm:text-sm", THEME.textMuted].join(" ")}>
+                            Select at least one option (choose “Nothing” if no extras).
+                          </div>
+                        ) : null}
+                      </div>
                     </div>
-                  </div>
-                );
-              })}
+                  );
+                })}
+              </div>
+
+              <div className={["mt-4 text-xs sm:text-sm", THEME.textMuted].join(" ")}>
+                Tip: This section scrolls when you have many cleanings.
+              </div>
             </div>
           </div>
         ) : null}
-      </div>
+      </SectionCard>
     </div>
   );
 }
