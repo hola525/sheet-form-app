@@ -521,8 +521,8 @@ export default function FormShell() {
   // =========================================================
   return (
     <div className="min-h-screen w-full bg-gradient-to-b from-zinc-700 to-zinc-800 text-white px-4 py-10 sm:px-6">
-      <div className="mx-auto w-full max-w-3xl">
-        <div className="rounded-3xl border border-zinc-700/60 bg-zinc-950/40 shadow-xl backdrop-blur px-5 py-6 sm:px-8 sm:py-8">
+      <div className="mx-auto w-full max-w-5xl min-h-[800px]">
+        <div className="rounded-3xl border border-zinc-700/60 bg-zinc-950/40 shadow-xl backdrop-blur px-5 py-6 sm:px-8 sm:py-8 min-h-[550px]">
           {/* Header */}
           <div className="flex items-start justify-between gap-4">
             <div>
@@ -630,7 +630,7 @@ export default function FormShell() {
               type="button"
               onClick={goBack}
               disabled={step === 1}
-              className="w-full sm:w-auto rounded-2xl border border-zinc-700/70 bg-black/20 px-5 py-3 text-base font-medium disabled:opacity-50"
+              className="w-full sm:w-auto rounded-2xl border border-zinc-700/70 bg-black/20 px-5 py-3 text-base font-medium disabled:opacity-50 cursor-pointer"
             >
               {TEXT.back}
             </button>
@@ -645,7 +645,7 @@ export default function FormShell() {
                   (step === 3 && !canNextStep3()) ||
                   (step === 4 && !canNextStep4())
                 }
-                className="w-full sm:w-auto sm:ml-auto rounded-2xl bg-white px-6 py-3 text-base font-semibold text-black hover:bg-zinc-200 disabled:opacity-60"
+                className="w-full sm:w-auto sm:ml-auto rounded-2xl bg-white px-6 py-3 text-base font-semibold text-black hover:bg-zinc-200 disabled:opacity-60 cursor-pointer"
               >
                 {TEXT.next}
               </button>
@@ -654,7 +654,7 @@ export default function FormShell() {
                 type="button"
                 onClick={onFinalSubmitClick}
                 disabled={!canSubmitFinal() || saving}
-                className="w-full sm:w-auto sm:ml-auto rounded-2xl bg-white px-6 py-3 text-base font-semibold text-black hover:bg-zinc-200 disabled:opacity-60"
+                className="w-full sm:w-auto sm:ml-auto rounded-2xl bg-white px-6 py-3 text-base font-semibold text-black hover:bg-zinc-200 disabled:opacity-60 cursor-pointer"
               >
                 {saving ? "Saving..." : userType === "registered" && action === "plans" ? "Update" : TEXT.submit}
               </button>
