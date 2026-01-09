@@ -646,6 +646,51 @@ export default function FormShell() {
 
   const isSubmitBlocked = !canSubmitFinal();
   const isUpdateBlocked = showPartialUpdate && !!getStepError_(step);
+// ✅ Registered -> Hire cleaning: go to Step 1, keep email, clear everything else
+function startNewHireKeepEmail_() {
+  setMsg("");
+  setTouchedNext(0);
+
+  // ✅ Switch to NEW user flow and go back to step 1
+  setUserType("new");
+  setStep(1);
+
+  // ✅ Clear Step 2 new-user fields (except email)
+  setFullName("");
+  setPhone("");
+
+  // ✅ Clear registered-only state
+  setAction("");
+  setSelectedPlanId("");
+  setModifyAction("");
+
+  // ✅ Clear steps 3/4/5 data (so everything is empty)
+  setProvince("");
+  setCity("");
+  setStreet("");
+  setDetails("");
+  setPropertyType("");
+
+  setDurationHours("");
+  setNumberCleanings("");
+  setAutoRenew("");
+
+  setScheduleDates([]);
+  setScheduleTimes([]);
+  setExtrasByCleaning({});
+
+  setDate("");
+  setTime("");
+  setTimeWindow("");
+  setExtras({});
+
+  setCleaningInstructions("");
+  setFavoriteDuo("");
+  setServiceType("");
+
+  // optional: clear plans list UI
+  setPlans([]);
+}
 
   // =========================================================
   // UI
@@ -707,6 +752,7 @@ export default function FormShell() {
               onPlanActionSelect={onPlanActionSelect_}
               setMsg={setMsg}
               touchedNext={touchedNext === 2}
+              onHireFromRegistered={startNewHireKeepEmail_}  
             />
           )}
 

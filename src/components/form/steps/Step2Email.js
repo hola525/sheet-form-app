@@ -3,11 +3,29 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 
-// ✅ Get first date from CSV like: "2026-01-15, 2026-01-18"
-function getCleanDate_(plan) {
-  const csv = plan?.["schedule date"] || "";
-  const first = String(csv).split(",")[0]?.trim();
-  return first || "-";
+// ✅ Build schedule preview: "2026-01-15 10:00, 2026-01-18 14:30"
+function getSchedulePreview_(plan) {
+  const dateCSV = plan?.["schedule date"] || "";
+  const timeCSV = plan?.["schedule time"] || "";
+
+  const dates = String(dateCSV)
+    .split(",")
+    .map((x) => x.trim())
+    .filter(Boolean);
+
+  const times = String(timeCSV)
+    .split(",")
+    .map((x) => x.trim())
+    .filter(Boolean);
+
+  if (!dates.length) return "-";
+
+  const parts = dates.map((d, i) => {
+    const t = times[i] || "";
+    return t ? `${d} ${t}` : d;
+  });
+
+  return parts.join(", ");
 }
 
 // ✅ Same “theme variables” idea like Step 1 (easy to tweak later)
@@ -190,7 +208,8 @@ function PlanRow({ plan, isOpen, onToggleMenu, onActionPick }) {
     plan["number of cleanings"] || "-"
   } cleanings`;
 
-  const cleanDate = getCleanDate_(plan);
+  // const cleanDate = getCleanDate_(plan);
+  const schedulePreview = getSchedulePreview_(plan);
 
   return (
     <div
@@ -215,7 +234,8 @@ function PlanRow({ plan, isOpen, onToggleMenu, onActionPick }) {
           <div
             className={["mt-1 text-xs sm:text-sm", THEME.textMuted].join(" ")}
           >
-            Clean Date: <span className="text-white/70">{cleanDate}</span>
+            Date and Time:{" "}
+            <span className="text-white/70 break-words">{schedulePreview}</span>
           </div>
         </div>
 
@@ -308,6 +328,7 @@ export default function Step2Email({
   onPlanActionSelect,
   setMsg,
   touchedNext,
+  onHireFromRegistered,
 }) {
   // Which plan menu is open
   const [openMenuId, setOpenMenuId] = useState("");
@@ -408,9 +429,17 @@ export default function Step2Email({
               title="Hire cleaning services"
               description="Create a new cleaning request with this email."
               onSelect={() => {
-                setAction("hire");
                 setOpenMenuId("");
-                // keep selection clean
+                setMsg("");
+
+                // ✅ IMPORTANT: switch to NEW flow, go to Step 1, keep email
+                if (onHireFromRegistered) {
+                  onHireFromRegistered();
+                  return;
+                }
+
+                // fallback (should not happen)
+                setAction("hire");
                 setSelectedPlanId("");
                 setModifyAction("");
               }}
@@ -476,11 +505,11 @@ export default function Step2Email({
                 </button>
               </div>
               {showPlanPickError ? (
-  <div className="mt-3 text-sm text-red-300">
-    Please select a plan and choose an action from <span className="text-white/70">⋯</span>.
-  </div>
-) : null}
-
+                <div className="mt-3 text-sm text-red-300">
+                  Please select a plan and choose an action from{" "}
+                  <span className="text-white/70">⋯</span>.
+                </div>
+              ) : null}
 
               {plansLoading ? (
                 <div
