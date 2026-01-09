@@ -24,16 +24,19 @@ const THEME = {
   hoverBg: "hover:bg-black/30",
   focusRing:
     "focus-visible:ring-2 focus-visible:ring-white/40 focus-visible:ring-offset-0",
+  errorBorder: "border-red-500/70",
+  errorBg: "bg-red-500/5",
 };
 
-function SectionCard({ title, subtitle, rightSlot, children }) {
+function SectionCard({ title, subtitle, rightSlot, children, error }) {
   return (
     <div
       className={[
         "rounded-2xl border p-5 sm:p-6",
-        THEME.cardBorder,
-        THEME.cardBg,
         "transition-all duration-200 ease-in-out",
+        error
+          ? `${THEME.errorBorder} ${THEME.errorBg}`
+          : `${THEME.cardBorder} ${THEME.cardBg}`,
       ].join(" ")}
     >
       <div className="flex items-start justify-between gap-4">
@@ -47,7 +50,9 @@ function SectionCard({ title, subtitle, rightSlot, children }) {
             {title}
           </div>
           {subtitle ? (
-            <div className={["mt-1 text-sm sm:text-base", THEME.textSub].join(" ")}>
+            <div
+              className={["mt-1 text-sm sm:text-base", THEME.textSub].join(" ")}
+            >
               {subtitle}
             </div>
           ) : null}
@@ -61,12 +66,24 @@ function SectionCard({ title, subtitle, rightSlot, children }) {
   );
 }
 
-function InputField({ label, value, onChange, placeholder, type = "text" }) {
+function InputField({
+  label,
+  value,
+  onChange,
+  placeholder,
+  type = "text",
+  error,
+}) {
   return (
     <div>
-      <label className={["text-sm sm:text-base font-medium", THEME.textSub].join(" ")}>
+      <label
+        className={["text-sm sm:text-base font-medium", THEME.textSub].join(
+          " "
+        )}
+      >
         {label}
       </label>
+
       <input
         type={type}
         value={value}
@@ -78,17 +95,28 @@ function InputField({ label, value, onChange, placeholder, type = "text" }) {
           "bg-black/30 outline-none",
           "transition-all duration-200 ease-in-out",
           "cursor-text",
-          THEME.cardBorder,
-          "focus:border-white/40",
+          error
+            ? "border-red-500/70 focus:border-red-400"
+            : `${THEME.cardBorder} focus:border-white/40`,
           THEME.focusRing,
         ].join(" ")}
       />
+
+      {error ? (
+        <div className="mt-2 text-sm text-red-300">This field is required.</div>
+      ) : null}
     </div>
   );
 }
 
 // ✅ “Action Card” (Hire / View Plans) like Step 1 style
-function ActionCard({ checked, title, description, onSelect, name = "action" }) {
+function ActionCard({
+  checked,
+  title,
+  description,
+  onSelect,
+  name = "action",
+}) {
   return (
     <button
       type="button"
@@ -124,10 +152,17 @@ function ActionCard({ checked, title, description, onSelect, name = "action" }) 
         </span>
 
         <div className="min-w-0">
-          <div className={["text-base sm:text-lg font-semibold", THEME.textTitle].join(" ")}>
+          <div
+            className={[
+              "text-base sm:text-lg font-semibold",
+              THEME.textTitle,
+            ].join(" ")}
+          >
             {title}
           </div>
-          <div className={["mt-1 text-sm sm:text-base", THEME.textSub].join(" ")}>
+          <div
+            className={["mt-1 text-sm sm:text-base", THEME.textSub].join(" ")}
+          >
             {description}
           </div>
         </div>
@@ -147,16 +182,13 @@ function ActionCard({ checked, title, description, onSelect, name = "action" }) 
 }
 
 // ✅ Plan row (3-dots menu) — UI only
-function PlanRow({
-  plan,
-  isOpen,
-  onToggleMenu,
-  onActionPick,
-}) {
+function PlanRow({ plan, isOpen, onToggleMenu, onActionPick }) {
   const id = plan.id;
-  const label = `${plan["street/number"] || "-"}, ${plan["city/town"] || "-"}, ${
-    plan["province"] || "-"
-  } — ${plan["duration hours"] || "-"}h × ${plan["number of cleanings"] || "-"} cleanings`;
+  const label = `${plan["street/number"] || "-"}, ${
+    plan["city/town"] || "-"
+  }, ${plan["province"] || "-"} — ${plan["duration hours"] || "-"}h × ${
+    plan["number of cleanings"] || "-"
+  } cleanings`;
 
   const cleanDate = getCleanDate_(plan);
 
@@ -171,11 +203,18 @@ function PlanRow({
     >
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
-          <div className={["text-sm sm:text-base font-semibold", THEME.textTitle].join(" ")}>
+          <div
+            className={[
+              "text-sm sm:text-base font-semibold",
+              THEME.textTitle,
+            ].join(" ")}
+          >
             <div className="truncate">{label}</div>
           </div>
 
-          <div className={["mt-1 text-xs sm:text-sm", THEME.textMuted].join(" ")}>
+          <div
+            className={["mt-1 text-xs sm:text-sm", THEME.textMuted].join(" ")}
+          >
             Clean Date: <span className="text-white/70">{cleanDate}</span>
           </div>
         </div>
@@ -267,7 +306,8 @@ export default function Step2Email({
 
   // ✅ NEW: 3-dots menu -> instant jump
   onPlanActionSelect,
-  setMsg
+  setMsg,
+  touchedNext,
 }) {
   // Which plan menu is open
   const [openMenuId, setOpenMenuId] = useState("");
@@ -284,24 +324,37 @@ export default function Step2Email({
   }, []);
 
   const hasEmail = useMemo(() => !!email.trim(), [email]);
+  const showEmailError =
+    touchedNext &&
+    (!email.trim() || !/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email.trim()));
+
+  const showNameError = touchedNext && userType === "new" && !fullName.trim();
+
+  const showPhoneError =
+    touchedNext &&
+    userType === "new" &&
+    (!phone.trim() || phone.replace(/[^\d]/g, "").length < 7);
+  const showExistingActionError =
+    touchedNext && userType === "registered" && !action;
+
+  const showPlanPickError =
+    touchedNext &&
+    userType === "registered" &&
+    action === "plans" &&
+    hasEmail &&
+    (!selectedPlanId || !modifyAction);
 
   return (
     <div className="mt-7 space-y-4 sm:space-y-5" ref={wrapRef}>
       {/* ✅ Email */}
-      <SectionCard
-        title="Email *"
-        subtitle="Enter your email to continue."
-      >
+      <SectionCard title="Email *" subtitle="Enter your email to continue.">
         <InputField
           label="Email Address"
           value={email}
-          onChange={(e) => {
-            // ✅ Important: do NOT clear action here.
-            // We only update the email, parent will auto-fetch plans if needed.
-            setEmail(e.target.value);
-          }}
+          onChange={(e) => setEmail(e.target.value)}
           placeholder="Enter your email"
           type="email"
+          error={showEmailError}
         />
       </SectionCard>
 
@@ -322,6 +375,7 @@ export default function Step2Email({
               value={fullName}
               onChange={(e) => setFullName(e.target.value)}
               placeholder="Your full name"
+              error={showNameError}
             />
 
             <InputField
@@ -329,6 +383,7 @@ export default function Step2Email({
               value={phone}
               onChange={(e) => setPhone(e.target.value)}
               placeholder="Your phone number"
+              error={showPhoneError}
             />
           </div>
         </SectionCard>
@@ -344,6 +399,7 @@ export default function Step2Email({
               Step 2 of 5
             </div>
           }
+          error={showExistingActionError}
         >
           {/* Actions (Hire / Plans) */}
           <div className="grid gap-3 sm:grid-cols-2">
@@ -381,9 +437,22 @@ export default function Step2Email({
 
           {/* Plans list */}
           {action === "plans" && hasEmail ? (
-            <div className="mt-5 rounded-2xl border bg-black/20 p-4 sm:p-5 border-zinc-700/60">
+            <div
+              className={[
+                "mt-5 rounded-2xl border bg-black/20 p-4 sm:p-5",
+                showPlanPickError
+                  ? "border-red-500/70 bg-red-500/5"
+                  : "border-zinc-700/60",
+                "transition-all duration-200 ease-in-out",
+              ].join(" ")}
+            >
               <div className="flex items-center justify-between gap-3">
-                <div className={["text-base sm:text-lg font-semibold", THEME.textTitle].join(" ")}>
+                <div
+                  className={[
+                    "text-base sm:text-lg font-semibold",
+                    THEME.textTitle,
+                  ].join(" ")}
+                >
                   Active / Pending Plans
                 </div>
 
@@ -406,20 +475,36 @@ export default function Step2Email({
                   {plansLoading ? "Loading..." : "Refresh"}
                 </button>
               </div>
+              {showPlanPickError ? (
+  <div className="mt-3 text-sm text-red-300">
+    Please select a plan and choose an action from <span className="text-white/70">⋯</span>.
+  </div>
+) : null}
+
 
               {plansLoading ? (
-                <div className={["mt-3 text-sm sm:text-base", THEME.textMuted].join(" ")}>
+                <div
+                  className={[
+                    "mt-3 text-sm sm:text-base",
+                    THEME.textMuted,
+                  ].join(" ")}
+                >
                   Loading…
                 </div>
               ) : plans.length === 0 ? (
-                <div className={["mt-3 text-sm sm:text-base", THEME.textMuted].join(" ")}>
+                <div
+                  className={[
+                    "mt-3 text-sm sm:text-base",
+                    THEME.textMuted,
+                  ].join(" ")}
+                >
                   No plans found for this email.
                 </div>
               ) : (
                 <div className="mt-4 space-y-3">
                   {plans.map((p) => {
                     const id = p.id;
-                    console.log("p---------->>>>>", p)
+                    console.log("p---------->>>>>", p);
                     const isOpen = openMenuId === id;
 
                     return (
@@ -436,19 +521,25 @@ export default function Step2Email({
                           setModifyAction(actionKey);
 
                           // ✅ instant jump + prefill handled in parent
-                          if (onPlanActionSelect) onPlanActionSelect(planId, actionKey);
+                          if (onPlanActionSelect)
+                            onPlanActionSelect(planId, actionKey);
 
                           // close menu
                           setOpenMenuId("");
-                         setMsg("")
-
+                          setMsg("");
                         }}
                       />
                     );
                   })}
 
-                  <div className={["pt-1 text-xs sm:text-sm", THEME.textMuted].join(" ")}>
-                    Tip: click <span className="text-white/70">⋯</span> on a plan and choose an action to open it instantly.
+                  <div
+                    className={[
+                      "pt-1 text-xs sm:text-sm",
+                      THEME.textMuted,
+                    ].join(" ")}
+                  >
+                    Tip: click <span className="text-white/70">⋯</span> on a
+                    plan and choose an action to open it instantly.
                   </div>
                 </div>
               )}
@@ -457,7 +548,9 @@ export default function Step2Email({
 
           {/* Small helper when no email */}
           {action === "plans" && !hasEmail ? (
-            <div className={["mt-4 text-xs sm:text-sm", THEME.textMuted].join(" ")}>
+            <div
+              className={["mt-4 text-xs sm:text-sm", THEME.textMuted].join(" ")}
+            >
               Enter your email above to load your plans.
             </div>
           ) : null}

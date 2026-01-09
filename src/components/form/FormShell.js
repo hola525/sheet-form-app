@@ -140,6 +140,7 @@ export default function FormShell() {
   // UI status
   const [msg, setMsg] = useState("");
   const [saving, setSaving] = useState(false);
+  const [touchedNext, setTouchedNext] = useState(0); // step number when user pressed Next
 
   // =========================================================
   // CONFIG FROM GOOGLE SHEET (Config tab)
@@ -187,17 +188,33 @@ export default function FormShell() {
     load();
   }, []);
 
+  useEffect(() => {
+    setTouchedNext(0);
+  }, [step]);
+
   // =========================================================
   // OPTIONS (cfg first, then fallback OPTIONS)
   // =========================================================
-  const provinceOptions = cfg.provinces.length ? cfg.provinces : OPTIONS.provinces;
-  const propertyTypeOptions = cfg.propertyTypes.length ? cfg.propertyTypes : OPTIONS.propertyTypes;
-  const durationOptions = cfg.durationHours.length ? cfg.durationHours : OPTIONS.durationHours;
-  const numberCleaningsOptions = cfg.numberOfCleanings.length ? cfg.numberOfCleanings : OPTIONS.numberCleanings;
+  const provinceOptions = cfg.provinces.length
+    ? cfg.provinces
+    : OPTIONS.provinces;
+  const propertyTypeOptions = cfg.propertyTypes.length
+    ? cfg.propertyTypes
+    : OPTIONS.propertyTypes;
+  const durationOptions = cfg.durationHours.length
+    ? cfg.durationHours
+    : OPTIONS.durationHours;
+  const numberCleaningsOptions = cfg.numberOfCleanings.length
+    ? cfg.numberOfCleanings
+    : OPTIONS.numberCleanings;
   const renewOptions = cfg.renewPlans.length ? cfg.renewPlans : ["Yes", "No"];
-  const serviceTypeOptions = cfg.serviceTypes.length ? cfg.serviceTypes : OPTIONS.serviceTypes;
+  const serviceTypeOptions = cfg.serviceTypes.length
+    ? cfg.serviceTypes
+    : OPTIONS.serviceTypes;
 
-  const extrasCheckboxOptions = cfg.extrasCols.length ? cfg.extrasCols : OPTIONS.extrasCols;
+  const extrasCheckboxOptions = cfg.extrasCols.length
+    ? cfg.extrasCols
+    : OPTIONS.extrasCols;
 
   const cityOptions = useMemo(() => {
     if (!province) return [];
@@ -212,7 +229,10 @@ export default function FormShell() {
   const cleaningLabels = useMemo(() => {
     const n = Number(numberCleanings || 0);
     if (!n) return [];
-    return Array.from({ length: Math.min(n, 12) }, (_, i) => `Cleaning ${i + 1}`);
+    return Array.from(
+      { length: Math.min(n, 12) },
+      (_, i) => `Cleaning ${i + 1}`
+    );
   }, [numberCleanings]);
 
   // =========================================================
@@ -240,7 +260,8 @@ export default function FormShell() {
   }
 
   function canNextStep4() {
-    if (!(durationHours && numberCleanings && renewOptions.includes(autoRenew))) return false;
+    if (!(durationHours && numberCleanings && renewOptions.includes(autoRenew)))
+      return false;
 
     const n = Number(numberCleanings || 0);
     if (!n) return false;
@@ -268,14 +289,16 @@ export default function FormShell() {
   function getStepError_(stepNum) {
     // Step 1
     if (stepNum === 1) {
-      if (!userType) return "Please select Email Type (New Email or Registered Email).";
+      if (!userType)
+        return "Please select Email Type (New Email or Registered Email).";
       return "";
     }
 
     // Step 2
     if (stepNum === 2) {
       if (!email.trim()) return "Please enter your email address.";
-      if (!isValidEmail_(email)) return "Please enter a valid email address (example: name@email.com).";
+      if (!isValidEmail_(email))
+        return "Please enter a valid email address (example: name@email.com).";
 
       if (userType === "new") {
         if (!fullName.trim()) return "Please enter your Name and Surname.";
@@ -287,8 +310,10 @@ export default function FormShell() {
       if (userType === "registered") {
         if (!action) return "Please choose what action you want to take.";
         if (action === "plans") {
-          if (!selectedPlanId) return "Please select a plan first (and pick an action).";
-          if (!modifyAction) return "Please choose what you want to change for the selected plan.";
+          if (!selectedPlanId)
+            return "Please select a plan first (and pick an action).";
+          if (!modifyAction)
+            return "Please choose what you want to change for the selected plan.";
         }
         return "";
       }
@@ -310,7 +335,8 @@ export default function FormShell() {
     if (stepNum === 4) {
       if (!durationHours) return "Please select Duration of each cleaning.";
       if (!numberCleanings) return "Please select Number of Cleanings.";
-      if (!renewOptions.includes(autoRenew)) return "Please choose Auto renew (Yes/No).";
+      if (!renewOptions.includes(autoRenew))
+        return "Please choose Auto renew (Yes/No).";
 
       const n = Number(numberCleanings || 0);
       if (!n) return "Please select Number of Cleanings.";
@@ -323,7 +349,8 @@ export default function FormShell() {
 
         if (!d) return `Please select Date for ${label}.`;
         if (!t) return `Please select Time for ${label}.`;
-        if (!Array.isArray(ex) || ex.length === 0) return `Please select Extras for ${label} (choose “Nothing” if none).`;
+        if (!Array.isArray(ex) || ex.length === 0)
+          return `Please select Extras for ${label} (choose “Nothing” if none).`;
       }
 
       return "";
@@ -331,7 +358,8 @@ export default function FormShell() {
 
     // Step 5
     if (stepNum === 5) {
-      if (!cleaningInstructions.trim()) return "Please fill Cleaning instructions.";
+      if (!cleaningInstructions.trim())
+        return "Please fill Cleaning instructions.";
       if (!serviceType) return "Please select Type of service to be performed.";
       return "";
     }
@@ -348,9 +376,12 @@ export default function FormShell() {
     setPlansLoading(true);
 
     try {
-      const res = await fetch(`/api/duo/plans?email=${encodeURIComponent(email.trim())}`);
+      const res = await fetch(
+        `/api/duo/plans?email=${encodeURIComponent(email.trim())}`
+      );
       const data = await res.json();
-      if (!res.ok || !data.ok) throw new Error(data?.error || "Failed to load plans");
+      if (!res.ok || !data.ok)
+        throw new Error(data?.error || "Failed to load plans");
       setPlans(data.plans || []);
     } catch (e) {
       setMsg(e.message);
@@ -562,6 +593,7 @@ export default function FormShell() {
   // =========================================================
   function goNext() {
     setMsg("");
+    setTouchedNext(step); // ✅ user tried to go next from this step
 
     // ✅ show friendly message if invalid
     const err = getStepError_(step);
@@ -600,7 +632,7 @@ export default function FormShell() {
 
   function onFinalSubmitClick() {
     setMsg("");
-
+    setTouchedNext(step); // ✅ user tried to go next from this step
     // ✅ show message instead of disabling submit
     const err = getStepError_(5);
     if (err) {
@@ -608,7 +640,8 @@ export default function FormShell() {
       return;
     }
 
-    if (userType === "registered" && action === "plans") return updateExistingPlan("all");
+    if (userType === "registered" && action === "plans")
+      return updateExistingPlan("all");
     return submitAll();
   }
 
@@ -660,7 +693,13 @@ export default function FormShell() {
           ) : null}
 
           {/* Steps */}
-          {step === 1 && <Step1UserType userType={userType} setUserType={setUserType} />}
+          {step === 1 && (
+            <Step1UserType
+              userType={userType}
+              setUserType={setUserType}
+              touchedNext={touchedNext === 1}
+            />
+          )}
 
           {step === 2 && (
             <Step2Email
@@ -682,6 +721,7 @@ export default function FormShell() {
               setModifyAction={setModifyAction}
               onPlanActionSelect={onPlanActionSelect_}
               setMsg={setMsg}
+              touchedNext={touchedNext === 2}
             />
           )}
 
@@ -700,6 +740,7 @@ export default function FormShell() {
               provinceOptions={provinceOptions}
               cityOptions={cityOptions}
               propertyTypeOptions={propertyTypeOptions}
+              touchedNext={touchedNext}
             />
           )}
 
@@ -723,6 +764,8 @@ export default function FormShell() {
               extrasByCleaning={extrasByCleaning}
               setExtrasByCleaning={setExtrasByCleaning}
               extrasCheckboxOptions={extrasCheckboxOptions}
+              touchedNext={touchedNext}
+
             />
           )}
 
@@ -735,6 +778,7 @@ export default function FormShell() {
               serviceType={serviceType}
               setServiceType={setServiceType}
               serviceTypeOptions={serviceTypeOptions}
+              touchedNext={touchedNext}
             />
           )}
 
@@ -775,7 +819,11 @@ export default function FormShell() {
                   saving ? "opacity-60" : "",
                 ].join(" ")}
               >
-                {saving ? "Saving..." : userType === "registered" && action === "plans" ? "Update" : TEXT.submit}
+                {saving
+                  ? "Saving..."
+                  : userType === "registered" && action === "plans"
+                  ? "Update"
+                  : TEXT.submit}
               </button>
             )}
           </div>

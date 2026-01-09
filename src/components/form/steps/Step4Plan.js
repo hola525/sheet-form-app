@@ -4,6 +4,7 @@
 // ✅ Bigger fonts + better spacing
 // ✅ Smooth transitions + focus rings + cursor pointer
 // ✅ Scroll ONLY in "Schedule & Extras" section when many cleanings
+// ✅ Adds red border on required fields when user clicks Next (touchedNext)
 // ✅ NO business logic change
 
 // --- helpers (date-only compare, no timezone headaches) ---
@@ -30,14 +31,14 @@ const THEME = {
     "focus-visible:ring-2 focus-visible:ring-white/40 focus-visible:ring-offset-0",
 };
 
-function SectionCard({ title, subtitle, rightSlot, children }) {
+function SectionCard({ title, subtitle, rightSlot, error, children }) {
   return (
     <div
       className={[
         "mt-7 rounded-2xl border p-5 sm:p-6",
-        THEME.cardBorder,
         THEME.cardBg,
         "transition-all duration-200 ease-in-out",
+        error ? "border-red-500/70 bg-red-500/5" : THEME.cardBorder,
       ].join(" ")}
     >
       <div className="flex items-start justify-between gap-4">
@@ -67,51 +68,62 @@ function FieldLabel({ children }) {
   );
 }
 
-function SelectField({ value, onChange, children }) {
+function FieldError({ show, message = "This field is required." }) {
+  if (!show) return null;
+  return <div className="mt-2 text-sm text-red-300">{message}</div>;
+}
+
+function SelectField({ value, onChange, children, error }) {
   return (
-    <select
-      value={value}
-      onChange={onChange}
-      className={[
-        "mt-2 w-full rounded-2xl border px-4 py-3 sm:py-3.5",
-        "text-base sm:text-lg",
-        "bg-black/30 outline-none",
-        "transition-all duration-200 ease-in-out",
-        "cursor-pointer",
-        THEME.cardBorder,
-        "focus:border-white/40",
-        THEME.focusRing,
-      ].join(" ")}
-    >
-      {children}
-    </select>
+    <>
+      <select
+        value={value}
+        onChange={onChange}
+        className={[
+          "mt-2 w-full rounded-2xl border px-4 py-3 sm:py-3.5",
+          "text-base sm:text-lg",
+          "bg-black/30 outline-none",
+          "transition-all duration-200 ease-in-out",
+          "cursor-pointer",
+          THEME.focusRing,
+          error ? "border-red-500/70 focus:border-red-400" : `${THEME.cardBorder} focus:border-white/40`,
+        ].join(" ")}
+      >
+        {children}
+      </select>
+
+      <FieldError show={error} />
+    </>
   );
 }
 
-function InputField({ type, value, onChange, disabled, min }) {
+function InputField({ type, value, onChange, disabled, min, error }) {
   return (
-    <input
-      type={type}
-      value={value}
-      onChange={onChange}
-      disabled={disabled}
-      min={min}
-      className={[
-        "mt-2 w-full rounded-2xl border px-4 py-3 sm:py-3.5",
-        "text-base sm:text-lg",
-        "bg-black/30 outline-none",
-        "transition-all duration-200 ease-in-out",
-        type === "date" || type === "time" ? "cursor-pointer" : "cursor-text",
-        THEME.cardBorder,
-        "focus:border-white/40",
-        THEME.focusRing,
-        disabled ? "opacity-60 cursor-not-allowed" : "",
-      ].join(" ")}
-    />
+    <>
+      <input
+        type={type}
+        value={value}
+        onChange={onChange}
+        disabled={disabled}
+        min={min}
+        className={[
+          "mt-2 w-full rounded-2xl border px-4 py-3 sm:py-3.5",
+          "text-base sm:text-lg",
+          "bg-black/30 outline-none",
+          "transition-all duration-200 ease-in-out",
+          type === "date" || type === "time" ? "cursor-pointer" : "cursor-text",
+          THEME.focusRing,
+          error ? "border-red-500/70 focus:border-red-400" : `${THEME.cardBorder} focus:border-white/40`,
+          disabled ? "opacity-60 cursor-not-allowed" : "",
+        ].join(" ")}
+      />
+
+      <FieldError show={error} />
+    </>
   );
 }
 
-function RadioPill({ checked, label, onSelect }) {
+function RadioPill({ checked, label, onSelect, error }) {
   return (
     <button
       type="button"
@@ -120,10 +132,12 @@ function RadioPill({ checked, label, onSelect }) {
         "group flex w-full items-center justify-between gap-3 rounded-2xl border px-4 py-3",
         "transition-all duration-200 ease-in-out",
         "cursor-pointer",
-        checked
+        THEME.focusRing,
+        error
+          ? "border-red-500/70 bg-red-500/5"
+          : checked
           ? "border-white/50 bg-white/10"
           : "border-zinc-700/60 bg-black/20 hover:bg-black/30",
-        THEME.focusRing,
       ].join(" ")}
     >
       <div className="flex items-center gap-3">
@@ -152,7 +166,7 @@ function RadioPill({ checked, label, onSelect }) {
   );
 }
 
-function CheckboxItem({ checked, disabled, label, onToggle }) {
+function CheckboxItem({ checked, disabled, label, onToggle, error }) {
   return (
     <button
       type="button"
@@ -162,8 +176,8 @@ function CheckboxItem({ checked, disabled, label, onToggle }) {
         "group flex w-full items-center gap-3 rounded-xl border px-3 py-2 text-left",
         "transition-all duration-200 ease-in-out",
         disabled ? "opacity-60 cursor-not-allowed" : "cursor-pointer hover:bg-black/30",
-        "border-zinc-700/60 bg-black/20",
         THEME.focusRing,
+        error ? "border-red-500/70 bg-red-500/5" : "border-zinc-700/60 bg-black/20",
       ].join(" ")}
     >
       <span
@@ -209,6 +223,9 @@ export default function Step4Plan({
   extrasByCleaning,
   setExtrasByCleaning,
   extrasCheckboxOptions,
+
+  // ✅ NEW
+  touchedNext,
 }) {
   function setDateAt_(idx, value) {
     setScheduleDates((prev) => {
@@ -264,11 +281,42 @@ export default function Step4Plan({
   const n = Number(numberCleanings || 0);
   const minDate = todayISO_();
 
+  // ✅ Required errors (only when Next clicked)
+  const showDurationError = !!touchedNext && !durationHours;
+  const showNumCleaningsError = !!touchedNext && !numberCleanings;
+  const showAutoRenewError =
+    !!touchedNext && (!autoRenew || !renewOptions.includes(autoRenew));
+
+  // ✅ Schedule section errors (per cleaning)
+  let scheduleHasAnyError = false;
+  const perCleaningErrors = cleaningLabels.map((label, idx) => {
+    const key = label;
+    const dateVal = scheduleDates?.[idx] || "";
+    const locked = isPastDate_(dateVal);
+    const timeVal = scheduleTimes?.[idx] || "";
+    const selectedExtras = extrasByCleaning?.[key] || [];
+
+    // Only validate schedule fields if cleaning exists + not locked
+    const dateErr = !!touchedNext && !locked && !dateVal;
+    const timeErr = !!touchedNext && !locked && !timeVal;
+    const extrasErr =
+      !!touchedNext && !locked && (!Array.isArray(selectedExtras) || selectedExtras.length === 0);
+
+    const any = dateErr || timeErr || extrasErr;
+    if (any) scheduleHasAnyError = true;
+
+    return { locked, dateErr, timeErr, extrasErr, any };
+  });
+
+  const hasAnyError =
+    showDurationError || showNumCleaningsError || showAutoRenewError || scheduleHasAnyError;
+
   return (
     <div className="space-y-4">
       <SectionCard
         title="Cleaning plan *"
         subtitle="Choose your plan, then set schedule and extras for each cleaning."
+        error={hasAnyError}
         rightSlot={
           <div className="hidden sm:block rounded-full border border-white/10 bg-black/20 px-3 py-1 text-xs text-white/70">
             Step 4 of 5
@@ -279,7 +327,11 @@ export default function Step4Plan({
         <div className="grid gap-4 sm:gap-5">
           <div>
             <FieldLabel>Duration of each cleaning (hours) *</FieldLabel>
-            <SelectField value={durationHours} onChange={(e) => setDurationHours(e.target.value)}>
+            <SelectField
+              value={durationHours}
+              onChange={(e) => setDurationHours(e.target.value)}
+              error={showDurationError}
+            >
               <option value="">Select</option>
               {durationOptions.map((h) => (
                 <option key={h} value={h}>
@@ -297,6 +349,7 @@ export default function Step4Plan({
                 setNumberCleanings(e.target.value);
                 if (typeof onChangeNumberCleanings === "function") onChangeNumberCleanings();
               }}
+              error={showNumCleaningsError}
             >
               <option value="">Select</option>
               {numberCleaningsOptions.map((x) => (
@@ -317,9 +370,12 @@ export default function Step4Plan({
                   checked={autoRenew === opt}
                   label={opt}
                   onSelect={() => setAutoRenew(opt)}
+                  error={showAutoRenewError}
                 />
               ))}
             </div>
+
+            <FieldError show={showAutoRenewError} />
           </div>
         </div>
 
@@ -328,8 +384,8 @@ export default function Step4Plan({
           <div
             className={[
               "mt-6 rounded-2xl border p-4 sm:p-5",
-              THEME.innerBorder,
               THEME.innerBg,
+              scheduleHasAnyError ? "border-red-500/70 bg-red-500/5" : THEME.innerBorder,
             ].join(" ")}
           >
             <div className={["text-base sm:text-lg font-semibold", THEME.textTitle].join(" ")}>
@@ -348,13 +404,16 @@ export default function Step4Plan({
                   const locked = isPastDate_(dateVal);
                   const selectedExtras = extrasByCleaning?.[key] || [];
 
+                  const errs = perCleaningErrors[idx] || {};
+                  const cardBorder = errs.any ? "border-red-500/70 bg-red-500/5" : THEME.innerBorder;
+
                   return (
                     <div
                       key={key}
                       className={[
                         "rounded-2xl border p-4",
                         "transition-all duration-200 ease-in-out",
-                        THEME.innerBorder,
+                        cardBorder,
                         "bg-black/25",
                       ].join(" ")}
                     >
@@ -397,6 +456,7 @@ export default function Step4Plan({
                             value={dateVal}
                             disabled={locked}
                             onChange={(e) => setDateAt_(idx, e.target.value)}
+                            error={errs.dateErr}
                           />
                         </div>
 
@@ -407,6 +467,7 @@ export default function Step4Plan({
                             value={scheduleTimes?.[idx] || ""}
                             disabled={locked}
                             onChange={(e) => setTimeAt_(idx, e.target.value)}
+                            error={errs.timeErr}
                           />
                         </div>
                       </div>
@@ -427,17 +488,16 @@ export default function Step4Plan({
                                 disabled={locked}
                                 label={opt}
                                 onToggle={() => toggleExtra_(key, opt, locked)}
+                                error={false}
                               />
                             );
                           })}
                         </div>
 
-                        {!locked &&
-                        (!Array.isArray(selectedExtras) || selectedExtras.length === 0) ? (
-                          <div className={["mt-3 text-xs sm:text-sm", THEME.textMuted].join(" ")}>
-                            Select at least one option (choose “Nothing” if no extras).
-                          </div>
-                        ) : null}
+                        <FieldError
+                          show={errs.extrasErr}
+                          message='Select at least one option (choose “Nothing” if no extras).'
+                        />
                       </div>
                     </div>
                   );
