@@ -6,6 +6,8 @@
 // ✅ Scroll ONLY in "Schedule & Extras" section when many cleanings
 // ✅ Adds red border on required fields when user clicks Next (touchedNext)
 // ✅ NO business logic change
+import { CalendarDays, Clock3 } from "lucide-react";
+import { useRef } from "react";
 
 // --- helpers (date-only compare, no timezone headaches) ---
 function todayISO_() {
@@ -98,30 +100,78 @@ function SelectField({ value, onChange, children, error }) {
 }
 
 function InputField({ type, value, onChange, disabled, min, error }) {
+  const inputRef = useRef(null);
+  const isDateTime = type === "date" || type === "time";
+
+  function openNativePicker_() {
+    if (!inputRef.current || disabled) return;
+
+    // ✅ Chrome / Edge support this
+    if (typeof inputRef.current.showPicker === "function") {
+      inputRef.current.showPicker();
+      return;
+    }
+
+    // ✅ fallback
+    inputRef.current.focus();
+  }
+
   return (
     <>
-      <input
-        type={type}
-        value={value}
-        onChange={onChange}
-        disabled={disabled}
-        min={min}
-        className={[
-          "mt-2 w-full rounded-2xl border px-4 py-3 sm:py-3.5",
-          "text-base sm:text-lg",
-          "bg-black/30 outline-none",
-          "transition-all duration-200 ease-in-out",
-          type === "date" || type === "time" ? "cursor-pointer" : "cursor-text",
-          THEME.focusRing,
-          error ? "border-red-500/70 focus:border-red-400" : `${THEME.cardBorder} focus:border-white/40`,
-          disabled ? "opacity-60 cursor-not-allowed" : "",
-        ].join(" ")}
-      />
+      <div className="relative">
+        <input
+          ref={inputRef}
+          type={type}
+          value={value}
+          onChange={onChange}
+          disabled={disabled}
+          min={min}
+          className={[
+            "mt-2 w-full rounded-2xl border px-4 py-3 sm:py-3.5",
+            "text-base sm:text-lg",
+            "bg-black/30 outline-none",
+            "transition-all duration-200 ease-in-out",
+            isDateTime ? "cursor-pointer pr-12 duo-native-datetime" : "cursor-text",
+            THEME.focusRing,
+            error
+              ? "border-red-500/70 focus:border-red-400"
+              : `${THEME.cardBorder} focus:border-white/40`,
+            disabled ? "opacity-60 cursor-not-allowed" : "",
+          ].join(" ")}
+        />
+
+        {/* ✅ Nice clear icon (instead of old native one) */}
+        {isDateTime ? (
+          <button
+            type="button"
+            onClick={openNativePicker_}
+            disabled={disabled}
+            className={[
+              "absolute right-3 top-1/2 -translate-y-1/2",
+              "h-9 w-9 rounded-xl border",
+              "flex items-center justify-center",
+              "transition-all duration-200",
+              disabled
+                ? "opacity-50 cursor-not-allowed border-zinc-700/50 bg-black/10"
+                : "cursor-pointer border-white/10 bg-black/25 hover:bg-white/10",
+              error ? "border-red-500/40" : "",
+            ].join(" ")}
+            aria-label={type === "date" ? "Open date picker" : "Open time picker"}
+          >
+            {type === "date" ? (
+              <CalendarDays className="h-5 w-5 text-white/90" />
+            ) : (
+              <Clock3 className="h-5 w-5 text-white/90" />
+            )}
+          </button>
+        ) : null}
+      </div>
 
       <FieldError show={error} />
     </>
   );
 }
+
 
 function RadioPill({ checked, label, onSelect, error }) {
   return (
