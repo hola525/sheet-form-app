@@ -2,6 +2,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { Loader2 } from "lucide-react"; // ✅ NEW (nice spinner)
 
 // ✅ Step components (UI only)
 import Step1UserType from "./steps/Step1UserType";
@@ -80,6 +81,26 @@ function isValidPhone_(value) {
   if (!v) return false;
   const digits = v.replace(/[^\d]/g, "");
   return digits.length >= 7 && digits.length <= 15;
+}
+
+// ✅ NEW: Nice overlay loader (UI only)
+function LoadingOverlay({ show, label }) {
+  if (!show) return null;
+  return (
+    <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/60 backdrop-blur-sm px-4">
+      <div className="w-full max-w-sm rounded-3xl border border-zinc-700/60 bg-zinc-950/80 shadow-2xl p-6 text-center">
+        <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl border border-zinc-700/60 bg-black/30">
+          <Loader2 className="h-7 w-7 animate-spin text-white" />
+        </div>
+        <p className="mt-4 text-base sm:text-lg font-semibold text-white">
+          {label || "Loading..."}
+        </p>
+        <p className="mt-1 text-sm text-zinc-300">
+          Please wait a moment
+        </p>
+      </div>
+    </div>
+  );
 }
 
 export default function FormShell() {
@@ -646,57 +667,68 @@ export default function FormShell() {
 
   const isSubmitBlocked = !canSubmitFinal();
   const isUpdateBlocked = showPartialUpdate && !!getStepError_(step);
-// ✅ Registered -> Hire cleaning: go to Step 1, keep email, clear everything else
-function startNewHireKeepEmail_() {
-  setMsg("");
-  setTouchedNext(0);
 
-  // ✅ Switch to NEW user flow and go back to step 1
-  setUserType("new");
-  setStep(1);
+  // ✅ Registered -> Hire cleaning: go to Step 1, keep email, clear everything else
+  function startNewHireKeepEmail_() {
+    setMsg("");
+    setTouchedNext(0);
 
-  // ✅ Clear Step 2 new-user fields (except email)
-  setFullName("");
-  setPhone("");
+    // ✅ Switch to NEW user flow and go back to step 1
+    setUserType("new");
+    setStep(1);
 
-  // ✅ Clear registered-only state
-  setAction("");
-  setSelectedPlanId("");
-  setModifyAction("");
+    // ✅ Clear Step 2 new-user fields (except email)
+    setFullName("");
+    setPhone("");
 
-  // ✅ Clear steps 3/4/5 data (so everything is empty)
-  setProvince("");
-  setCity("");
-  setStreet("");
-  setDetails("");
-  setPropertyType("");
+    // ✅ Clear registered-only state
+    setAction("");
+    setSelectedPlanId("");
+    setModifyAction("");
 
-  setDurationHours("");
-  setNumberCleanings("");
-  setAutoRenew("");
+    // ✅ Clear steps 3/4/5 data (so everything is empty)
+    setProvince("");
+    setCity("");
+    setStreet("");
+    setDetails("");
+    setPropertyType("");
 
-  setScheduleDates([]);
-  setScheduleTimes([]);
-  setExtrasByCleaning({});
+    setDurationHours("");
+    setNumberCleanings("");
+    setAutoRenew("");
 
-  setDate("");
-  setTime("");
-  setTimeWindow("");
-  setExtras({});
+    setScheduleDates([]);
+    setScheduleTimes([]);
+    setExtrasByCleaning({});
 
-  setCleaningInstructions("");
-  setFavoriteDuo("");
-  setServiceType("");
+    setDate("");
+    setTime("");
+    setTimeWindow("");
+    setExtras({});
 
-  // optional: clear plans list UI
-  setPlans([]);
-}
+    setCleaningInstructions("");
+    setFavoriteDuo("");
+    setServiceType("");
+
+    // optional: clear plans list UI
+    setPlans([]);
+  }
+
+  // ✅ NEW: single place to decide overlay label
+  const overlayLabel = saving
+    ? "Saving your data..."
+    : plansLoading
+    ? "Loading plans..."
+    : "Loading...";
 
   // =========================================================
   // UI
   // =========================================================
   return (
     <div className="min-h-screen w-full bg-gradient-to-b from-zinc-700 to-zinc-800 text-white px-4 py-10 sm:px-6">
+      {/* ✅ NEW: Nice loading overlay for API calls */}
+      <LoadingOverlay show={saving || plansLoading} label={overlayLabel} />
+
       <div className="mx-auto w-full max-w-5xl min-h-[800px]">
         <div className="rounded-3xl border border-zinc-700/60 bg-zinc-950/40 shadow-xl backdrop-blur px-5 py-6 sm:px-8 sm:py-8 min-h-[550px]">
           {/* Header */}
@@ -752,7 +784,7 @@ function startNewHireKeepEmail_() {
               onPlanActionSelect={onPlanActionSelect_}
               setMsg={setMsg}
               touchedNext={touchedNext === 2}
-              onHireFromRegistered={startNewHireKeepEmail_}  
+              onHireFromRegistered={startNewHireKeepEmail_}
             />
           )}
 
@@ -817,7 +849,7 @@ function startNewHireKeepEmail_() {
             <button
               type="button"
               onClick={goBack}
-              disabled={step === 1}
+              disabled={step === 1 || saving || plansLoading} // ✅ optional safe disable while loading
               className="w-full sm:w-auto rounded-2xl border border-zinc-700/70 bg-black/20 px-5 py-3 text-base font-medium disabled:opacity-50 cursor-pointer"
             >
               {TEXT.back}
@@ -828,7 +860,7 @@ function startNewHireKeepEmail_() {
               <button
                 type="button"
                 onClick={onUpdateClick_}
-                disabled={saving} // ✅ only disable while saving (so click still works for validation)
+                disabled={saving}
                 aria-disabled={isUpdateBlocked || saving}
                 className={[
                   "w-full sm:w-auto sm:ml-auto rounded-2xl bg-white px-6 py-3 text-base font-semibold text-black hover:bg-zinc-200 cursor-pointer",
@@ -836,7 +868,14 @@ function startNewHireKeepEmail_() {
                   saving ? "opacity-60" : "",
                 ].join(" ")}
               >
-                {saving ? "Updating..." : "Update"}
+                {saving ? (
+                  <span className="inline-flex items-center gap-2">
+                    <Loader2 className="h-5 w-5 animate-spin" />
+                    Updating...
+                  </span>
+                ) : (
+                  "Update"
+                )}
               </button>
             ) : step < 5 ? (
               <button
@@ -854,7 +893,7 @@ function startNewHireKeepEmail_() {
               <button
                 type="button"
                 onClick={onFinalSubmitClick}
-                disabled={saving} // ✅ only disable while saving
+                disabled={saving}
                 aria-disabled={isSubmitBlocked || saving}
                 className={[
                   "w-full sm:w-auto sm:ml-auto rounded-2xl bg-white px-6 py-3 text-base font-semibold text-black hover:bg-zinc-200 cursor-pointer",
@@ -862,11 +901,16 @@ function startNewHireKeepEmail_() {
                   saving ? "opacity-60" : "",
                 ].join(" ")}
               >
-                {saving
-                  ? "Saving..."
-                  : userType === "registered" && action === "plans"
-                  ? "Update"
-                  : TEXT.submit}
+                {saving ? (
+                  <span className="inline-flex items-center gap-2">
+                    <Loader2 className="h-5 w-5 animate-spin" />
+                    {userType === "registered" && action === "plans" ? "Updating..." : "Saving..."}
+                  </span>
+                ) : userType === "registered" && action === "plans" ? (
+                  "Update"
+                ) : (
+                  TEXT.submit
+                )}
               </button>
             )}
           </div>
