@@ -2,9 +2,8 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { Loader2 } from "lucide-react"; // ✅ NEW (nice spinner)
+import { Loader2 } from "lucide-react";
 
-// ✅ Step components (UI only)
 import Step1UserType from "./steps/Step1UserType";
 import Step2Email from "./steps/Step2Email";
 import Step3Address from "./steps/Step3Address";
@@ -19,7 +18,6 @@ const TEXT = {
   submit: "Submit",
 };
 
-// ✅ fallback options (used when sheet/API is empty or request fails)
 const OPTIONS = {
   provinces: ["Buenos Aires", "Córdoba", "Mendoza", "Santa Fé"],
   cities: {
@@ -56,7 +54,6 @@ const OPTIONS = {
   ],
 };
 
-// Helpers for comma-separated schedule fields
 function splitCSV_(s) {
   return String(s || "")
     .split(",")
@@ -70,7 +67,6 @@ function joinCSV_(arr) {
     .join(", ");
 }
 
-// ✅ Simple validators (keep it small + practical)
 function isValidEmail_(value) {
   const v = String(value || "").trim();
   if (!v) return false;
@@ -83,7 +79,6 @@ function isValidPhone_(value) {
   return digits.length >= 7 && digits.length <= 15;
 }
 
-// ✅ NEW: Nice overlay loader (UI only)
 function LoadingOverlay({ show, label }) {
   if (!show) return null;
   return (
@@ -95,18 +90,13 @@ function LoadingOverlay({ show, label }) {
         <p className="mt-4 text-base sm:text-lg font-semibold text-white">
           {label || "Loading..."}
         </p>
-        <p className="mt-1 text-sm text-zinc-300">
-          Please wait a moment
-        </p>
+        <p className="mt-1 text-sm text-zinc-300">Please wait a moment</p>
       </div>
     </div>
   );
 }
 
 export default function FormShell() {
-  // =========================================================
-  // STEP FLOW STATE
-  // =========================================================
   const [step, setStep] = useState(1);
 
   // Step 1
@@ -118,9 +108,9 @@ export default function FormShell() {
   const [phone, setPhone] = useState("");
   const [action, setAction] = useState(""); // "hire" | "plans"
 
-  // ✅ Registered plans flow
+  // Registered plans flow
   const [selectedPlanId, setSelectedPlanId] = useState("");
-  const [modifyAction, setModifyAction] = useState(""); // "address" | "plan" | "schedule" | "additional"
+  const [modifyAction, setModifyAction] = useState(""); // "address" | "plan" | "additional"
 
   // Step 3 - Address
   const [province, setProvince] = useState("");
@@ -129,23 +119,22 @@ export default function FormShell() {
   const [details, setDetails] = useState("");
   const [propertyType, setPropertyType] = useState("");
 
-  // Step 4 - Plan + Schedule + Extras
+  // Step 4 - Plan + Schedule + Extras (ONE screen)
   const [durationHours, setDurationHours] = useState("");
   const [numberCleanings, setNumberCleanings] = useState("");
   const [autoRenew, setAutoRenew] = useState("");
 
-  // ✅ NEW schedule state (per cleaning)
   const [scheduleDates, setScheduleDates] = useState([]);
   const [scheduleTimes, setScheduleTimes] = useState([]);
   const [extrasByCleaning, setExtrasByCleaning] = useState({});
 
-  // legacy fields
+  // legacy fields (kept safe)
   const [date, setDate] = useState("");
   const [time, setTime] = useState("");
   const [timeWindow, setTimeWindow] = useState("");
   const [extras, setExtras] = useState({});
 
-  // Final step
+  // Step 5
   const [cleaningInstructions, setCleaningInstructions] = useState("");
   const [favoriteDuo, setFavoriteDuo] = useState("");
   const [serviceType, setServiceType] = useState("");
@@ -157,11 +146,9 @@ export default function FormShell() {
   // UI status
   const [msg, setMsg] = useState("");
   const [saving, setSaving] = useState(false);
-  const [touchedNext, setTouchedNext] = useState(0); // step number when user pressed Next/Update
+  const [touchedNext, setTouchedNext] = useState(0);
 
-  // =========================================================
-  // CONFIG FROM GOOGLE SHEET
-  // =========================================================
+  // Config
   const [cfg, setCfg] = useState({
     departments: [],
     categories: [],
@@ -203,20 +190,28 @@ export default function FormShell() {
     load();
   }, []);
 
-  useEffect(() => {
-    setTouchedNext(0);
-  }, [step]);
+  useEffect(() => setTouchedNext(0), [step]);
 
-  // =========================================================
-  // OPTIONS
-  // =========================================================
-  const provinceOptions = cfg.provinces.length ? cfg.provinces : OPTIONS.provinces;
-  const propertyTypeOptions = cfg.propertyTypes.length ? cfg.propertyTypes : OPTIONS.propertyTypes;
-  const durationOptions = cfg.durationHours.length ? cfg.durationHours : OPTIONS.durationHours;
-  const numberCleaningsOptions = cfg.numberOfCleanings.length ? cfg.numberOfCleanings : OPTIONS.numberCleanings;
+  // Options
+  const provinceOptions = cfg.provinces.length
+    ? cfg.provinces
+    : OPTIONS.provinces;
+  const propertyTypeOptions = cfg.propertyTypes.length
+    ? cfg.propertyTypes
+    : OPTIONS.propertyTypes;
+  const durationOptions = cfg.durationHours.length
+    ? cfg.durationHours
+    : OPTIONS.durationHours;
+  const numberCleaningsOptions = cfg.numberOfCleanings.length
+    ? cfg.numberOfCleanings
+    : OPTIONS.numberCleanings;
   const renewOptions = cfg.renewPlans.length ? cfg.renewPlans : ["Yes", "No"];
-  const serviceTypeOptions = cfg.serviceTypes.length ? cfg.serviceTypes : OPTIONS.serviceTypes;
-  const extrasCheckboxOptions = cfg.extrasCols.length ? cfg.extrasCols : OPTIONS.extrasCols;
+  const serviceTypeOptions = cfg.serviceTypes.length
+    ? cfg.serviceTypes
+    : OPTIONS.serviceTypes;
+  const extrasCheckboxOptions = cfg.extrasCols.length
+    ? cfg.extrasCols
+    : OPTIONS.extrasCols;
 
   const cityOptions = useMemo(() => {
     if (!province) return [];
@@ -228,28 +223,33 @@ export default function FormShell() {
   const cleaningLabels = useMemo(() => {
     const n = Number(numberCleanings || 0);
     if (!n) return [];
-    return Array.from({ length: Math.min(n, 12) }, (_, i) => `Cleaning ${i + 1}`);
+    return Array.from(
+      { length: Math.min(n, 12) },
+      (_, i) => `Cleaning ${i + 1}`
+    );
   }, [numberCleanings]);
 
-  // =========================================================
-  // ✅ Partial update helper
-  // =========================================================
+  // ✅ Registered plans flow helper
   const isRegisteredPlansFlow = userType === "registered" && action === "plans";
 
+  // ✅ NEW: updateMode mapping
+  // - address => updates address only (step 3)
+  // - plan => updates BOTH plan + schedule + extras (step 4)
+  // - additional => updates additional only (step 5)
   function getUpdateModeForCurrentStep_() {
     if (!isRegisteredPlansFlow) return "";
     if (!modifyAction) return "";
 
     if (step === 3 && modifyAction === "address") return "address";
-    if (step === 4 && modifyAction === "plan") return "plan";
-    if (step === 4 && modifyAction === "schedule") return "schedule";
+
+    // ✅ plan now means: plan + schedule (one option only)
+    if (step === 4 && modifyAction === "plan") return "plan_full";
+
     if (step === 5 && modifyAction === "additional") return "additional";
     return "";
   }
 
-  // =========================================================
-  // VALIDATION BOOLEANS
-  // =========================================================
+  // Validation
   function canNextStep1() {
     return userType === "new" || userType === "registered";
   }
@@ -272,7 +272,8 @@ export default function FormShell() {
   }
 
   function canNextStep4() {
-    if (!(durationHours && numberCleanings && renewOptions.includes(autoRenew))) return false;
+    if (!(durationHours && numberCleanings && renewOptions.includes(autoRenew)))
+      return false;
 
     const n = Number(numberCleanings || 0);
     if (!n) return false;
@@ -296,10 +297,10 @@ export default function FormShell() {
     return true;
   }
 
-  // ✅ Human-friendly error messages per step (same as your old working file)
   function getStepError_(stepNum) {
     if (stepNum === 1) {
-      if (!userType) return "Please select Email Type (New Email or Registered Email).";
+      if (!userType)
+        return "Please select Email Type (New Email or Registered Email).";
       return "";
     }
 
@@ -318,7 +319,8 @@ export default function FormShell() {
       if (userType === "registered") {
         if (!action) return "Please choose what action you want to take.";
         if (action === "plans") {
-          if (!selectedPlanId) return "Please select a plan first (and pick an action).";
+          if (!selectedPlanId)
+            return "Please select a plan first (and pick an action).";
           if (!modifyAction)
             return "Please choose what you want to change for the selected plan.";
         }
@@ -339,7 +341,8 @@ export default function FormShell() {
     if (stepNum === 4) {
       if (!durationHours) return "Please select Duration of each cleaning.";
       if (!numberCleanings) return "Please select Number of Cleanings.";
-      if (!renewOptions.includes(autoRenew)) return "Please choose Auto renew (Yes/No).";
+      if (!renewOptions.includes(autoRenew))
+        return "Please choose Auto renew (Yes/No).";
 
       const n = Number(numberCleanings || 0);
       if (!n) return "Please select Number of Cleanings.";
@@ -359,7 +362,8 @@ export default function FormShell() {
     }
 
     if (stepNum === 5) {
-      if (!cleaningInstructions.trim()) return "Please fill Cleaning instructions.";
+      if (!cleaningInstructions.trim())
+        return "Please fill Cleaning instructions.";
       if (!serviceType) return "Please select Type of service to be performed.";
       return "";
     }
@@ -367,18 +371,19 @@ export default function FormShell() {
     return "";
   }
 
-  // =========================================================
-  // API HELPERS
-  // =========================================================
+  // API
   async function fetchPlans() {
     setMsg("");
     setPlans([]);
     setPlansLoading(true);
 
     try {
-      const res = await fetch(`/api/duo/plans?email=${encodeURIComponent(email.trim())}`);
+      const res = await fetch(
+        `/api/duo/plans?email=${encodeURIComponent(email.trim())}`
+      );
       const data = await res.json();
-      if (!res.ok || !data.ok) throw new Error(data?.error || "Failed to load plans");
+      if (!res.ok || !data.ok)
+        throw new Error(data?.error || "Failed to load plans");
       setPlans(data.plans || []);
     } catch (e) {
       setMsg(e.message);
@@ -442,8 +447,7 @@ export default function FormShell() {
     prefillFromSelectedPlan_(planId);
 
     if (actionKey === "address") return setStep(3);
-    if (actionKey === "plan") return setStep(4);
-    if (actionKey === "schedule") return setStep(4);
+    if (actionKey === "plan") return setStep(4); // ✅ plan includes schedule+extras now
     if (actionKey === "additional") return setStep(5);
   }
 
@@ -458,7 +462,12 @@ export default function FormShell() {
       const payload = {
         address: { province, city, street, details, propertyType },
         plan: { durationHours, numberCleanings, autoRenew },
-        schedule: { date: scheduleDateCSV, time: scheduleTimeCSV, timeWindow: timeWindow || "", extras: extrasByCleaning },
+        schedule: {
+          date: scheduleDateCSV,
+          time: scheduleTimeCSV,
+          timeWindow: timeWindow || "",
+          extras: extrasByCleaning,
+        },
         additional: { cleaningInstructions, favoriteDuo, serviceType },
       };
 
@@ -471,6 +480,7 @@ export default function FormShell() {
       const data = await res.json();
       if (!res.ok || !data.ok) throw new Error(data?.error || "Update failed");
 
+      // ✅ After any partial update, go back to plans list
       if (isRegisteredPlansFlow && updateMode && updateMode !== "all") {
         setMsg("✅ Updated successfully!");
         setStep(2);
@@ -513,7 +523,12 @@ export default function FormShell() {
         address: { province, city, street, details, propertyType },
         plan: { durationHours, numberCleanings, autoRenew },
 
-        schedule: { date: scheduleDateCSV, time: scheduleTimeCSV, timeWindow: timeWindow || "", extras: extrasByCleaning },
+        schedule: {
+          date: scheduleDateCSV,
+          time: scheduleTimeCSV,
+          timeWindow: timeWindow || "",
+          extras: extrasByCleaning,
+        },
         additional: { cleaningInstructions, favoriteDuo, serviceType },
       };
 
@@ -570,9 +585,7 @@ export default function FormShell() {
     setPlans([]);
   }
 
-  // =========================================================
-  // NAVIGATION
-  // =========================================================
+  // Navigation
   function goNext() {
     setMsg("");
     setTouchedNext(step);
@@ -591,7 +604,6 @@ export default function FormShell() {
 
         if (modifyAction === "address") return setStep(3);
         if (modifyAction === "plan") return setStep(4);
-        if (modifyAction === "schedule") return setStep(4);
         if (modifyAction === "additional") return setStep(5);
         return;
       }
@@ -605,7 +617,6 @@ export default function FormShell() {
   function goBack() {
     setMsg("");
 
-    // ✅ back from edit section -> go to plans list
     if (isRegisteredPlansFlow && step !== 2 && modifyAction) {
       setStep(2);
       return;
@@ -627,7 +638,8 @@ export default function FormShell() {
       return;
     }
 
-    if (userType === "registered" && action === "plans") return updateExistingPlan("all");
+    if (userType === "registered" && action === "plans")
+      return updateExistingPlan("all");
     return submitAll();
   }
 
@@ -640,7 +652,6 @@ export default function FormShell() {
     setExtras({});
   }
 
-  // ✅ Decide if this screen should show "Update" instead of Next/Submit
   const updateMode = getUpdateModeForCurrentStep_();
   const showPartialUpdate = !!updateMode;
 
@@ -648,7 +659,6 @@ export default function FormShell() {
     setMsg("");
     setTouchedNext(step);
 
-    // ✅ IMPORTANT: show same error + red borders
     const err = getStepError_(step);
     if (err) {
       setMsg(`❌ ${err}`);
@@ -658,7 +668,6 @@ export default function FormShell() {
     return updateExistingPlan(updateMode);
   }
 
-  // ✅ For UI opacity only (not disabling click)
   const isNextBlocked =
     (step === 1 && !canNextStep1()) ||
     (step === 2 && !canNextStep2()) ||
@@ -668,25 +677,20 @@ export default function FormShell() {
   const isSubmitBlocked = !canSubmitFinal();
   const isUpdateBlocked = showPartialUpdate && !!getStepError_(step);
 
-  // ✅ Registered -> Hire cleaning: go to Step 1, keep email, clear everything else
   function startNewHireKeepEmail_() {
     setMsg("");
     setTouchedNext(0);
 
-    // ✅ Switch to NEW user flow and go back to step 1
     setUserType("new");
     setStep(1);
 
-    // ✅ Clear Step 2 new-user fields (except email)
     setFullName("");
     setPhone("");
 
-    // ✅ Clear registered-only state
     setAction("");
     setSelectedPlanId("");
     setModifyAction("");
 
-    // ✅ Clear steps 3/4/5 data (so everything is empty)
     setProvince("");
     setCity("");
     setStreet("");
@@ -710,28 +714,21 @@ export default function FormShell() {
     setFavoriteDuo("");
     setServiceType("");
 
-    // optional: clear plans list UI
     setPlans([]);
   }
 
-  // ✅ NEW: single place to decide overlay label
   const overlayLabel = saving
     ? "Saving your data..."
     : plansLoading
     ? "Loading plans..."
     : "Loading...";
 
-  // =========================================================
-  // UI
-  // =========================================================
   return (
     <div className="min-h-screen w-full bg-gradient-to-b from-zinc-700 to-zinc-800 text-white px-4 py-10 sm:px-6">
-      {/* ✅ NEW: Nice loading overlay for API calls */}
       <LoadingOverlay show={saving || plansLoading} label={overlayLabel} />
 
       <div className="mx-auto w-full max-w-5xl min-h-[800px]">
         <div className="rounded-3xl border border-zinc-700/60 bg-zinc-950/40 shadow-xl backdrop-blur px-5 py-6 sm:px-8 sm:py-8 min-h-[550px]">
-          {/* Header */}
           <div className="flex items-start justify-between gap-4">
             <div>
               <h1 className="text-2xl sm:text-3xl font-semibold tracking-tight">
@@ -747,14 +744,12 @@ export default function FormShell() {
             </div>
           </div>
 
-          {/* Message */}
           {msg ? (
             <div className="mt-5 rounded-2xl border border-zinc-700/60 bg-black/30 px-4 py-3 text-sm sm:text-base">
               {msg}
             </div>
           ) : null}
 
-          {/* Steps */}
           {step === 1 && (
             <Step1UserType
               userType={userType}
@@ -844,18 +839,16 @@ export default function FormShell() {
             />
           )}
 
-          {/* Footer buttons */}
           <div className="mt-8 flex flex-col-reverse gap-3 sm:flex-row sm:items-center">
             <button
               type="button"
               onClick={goBack}
-              disabled={step === 1 || saving || plansLoading} // ✅ optional safe disable while loading
+              disabled={step === 1 || saving || plansLoading}
               className="w-full sm:w-auto rounded-2xl border border-zinc-700/70 bg-black/20 px-5 py-3 text-base font-medium disabled:opacity-50 cursor-pointer"
             >
               {TEXT.back}
             </button>
 
-            {/* ✅ PARTIAL UPDATE MODE */}
             {showPartialUpdate ? (
               <button
                 type="button"
@@ -904,7 +897,9 @@ export default function FormShell() {
                 {saving ? (
                   <span className="inline-flex items-center gap-2">
                     <Loader2 className="h-5 w-5 animate-spin" />
-                    {userType === "registered" && action === "plans" ? "Updating..." : "Saving..."}
+                    {userType === "registered" && action === "plans"
+                      ? "Updating..."
+                      : "Saving..."}
                   </span>
                 ) : userType === "registered" && action === "plans" ? (
                   "Update"

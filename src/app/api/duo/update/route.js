@@ -5,7 +5,9 @@ export const runtime = "nodejs";
 const SHEET = "Submissions";
 
 function norm(s) {
-  return String(s || "").trim().toLowerCase();
+  return String(s || "")
+    .trim()
+    .toLowerCase();
 }
 
 // Convert 0 -> A, 25 -> Z, 26 -> AA
@@ -24,39 +26,40 @@ export async function POST(req) {
   try {
     const body = await req.json();
 
-    const id = String(body.id || "").trim(); // ✅ UUID
-    const updateMode = body.updateMode;
+    const id = String(body.id || "").trim();
+    const updateMode = String(body.updateMode || "").trim();
     const payload = body.payload || {};
 
     if (!id) {
-      return NextResponse.json({ ok: false, error: "ID is required" }, { status: 400 });
+      return NextResponse.json(
+        { ok: false, error: "ID is required" },
+        { status: 400 }
+      );
     }
 
     const sheets = getSheetsClient();
     const spreadsheetId = process.env.SPREADSHEET_ID;
 
-    // Read entire sheet once
     const res = await sheets.spreadsheets.values.get({
       spreadsheetId,
       range: `${SHEET}!A1:ZZ`,
     });
 
-    const [headersRaw, ...rows] = res.data.values;
-    const headers = headersRaw.map(norm);
+    const [headersRaw, ...rows] = res.data.values || [];
+    const headers = (headersRaw || []).map(norm);
 
     const idCol = headers.indexOf("id");
     if (idCol === -1) throw new Error("ID column not found");
 
-    // 🔍 Find row by ID
     const rowIndex = rows.findIndex((r) => r[idCol] === id);
     if (rowIndex === -1) throw new Error("Record not found");
 
-    const rowNumber = rowIndex + 2; // header + 1
+    const rowNumber = rowIndex + 2;
 
     const col = (name) => headers.indexOf(norm(name));
     const updates = [];
 
-    // ADDRESS
+    // ✅ ADDRESS (Step 3)
     if (updateMode === "address" || updateMode === "all") {
       updates.push(
         { col: col("Province"), val: payload.address?.province || "" },
@@ -67,16 +70,19 @@ export async function POST(req) {
       );
     }
 
-    // PLAN
+    // ✅ PLAN only (legacy support)
     if (updateMode === "plan" || updateMode === "all") {
       updates.push(
         { col: col("Duration Hours"), val: payload.plan?.durationHours || "" },
-        { col: col("Number of Cleanings"), val: payload.plan?.numberCleanings || "" },
+        {
+          col: col("Number of Cleanings"),
+          val: payload.plan?.numberCleanings || "",
+        },
         { col: col("Auto Renew"), val: payload.plan?.autoRenew || "" }
       );
     }
 
-    // SCHEDULE
+    // ✅ SCHEDULE only (legacy support)
     if (updateMode === "schedule" || updateMode === "all") {
       updates.push(
         { col: col("Schedule Date"), val: payload.schedule?.date || "" },
@@ -89,7 +95,29 @@ export async function POST(req) {
       );
     }
 
-    // ADDITIONAL
+    // ✅ NEW: plan_full = Step 4 single update (PLAN + SCHEDULE + EXTRAS)
+    if (updateMode === "plan_full") {
+      updates.push(
+        // plan fields
+        { col: col("Duration Hours"), val: payload.plan?.durationHours || "" },
+        {
+          col: col("Number of Cleanings"),
+          val: payload.plan?.numberCleanings || "",
+        },
+        { col: col("Auto Renew"), val: payload.plan?.autoRenew || "" },
+
+        // schedule fields
+        { col: col("Schedule Date"), val: payload.schedule?.date || "" },
+        { col: col("Schedule Time"), val: payload.schedule?.time || "" },
+        { col: col("Time Window"), val: payload.schedule?.timeWindow || "" },
+        {
+          col: col("Extras (JSON)"),
+          val: JSON.stringify(payload.schedule?.extras || {}),
+        }
+      );
+    }
+
+    // ✅ ADDITIONAL (Step 5)
     if (updateMode === "additional" || updateMode === "all") {
       updates.push(
         {

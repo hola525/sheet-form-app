@@ -28,7 +28,6 @@ function getSchedulePreview_(plan) {
   return parts.join(", ");
 }
 
-// ✅ Same “theme variables” idea like Step 1 (easy to tweak later)
 const THEME = {
   cardBg: "bg-black/25",
   cardBorder: "border-zinc-700/60",
@@ -127,7 +126,6 @@ function InputField({
   );
 }
 
-// ✅ “Action Card” (Hire / View Plans) like Step 1 style
 function ActionCard({
   checked,
   title,
@@ -152,7 +150,6 @@ function ActionCard({
       ].join(" ")}
     >
       <div className="flex items-start gap-4">
-        {/* ✅ Custom radio (clean + consistent) */}
         <span className="mt-1 inline-flex min-h-6 min-w-6 items-center justify-center rounded-full border border-white/20 bg-black/30 transition-all duration-200 ease-in-out group-hover:border-white/30">
           <span
             className={[
@@ -185,16 +182,6 @@ function ActionCard({
           </div>
         </div>
       </div>
-
-      {/* <div
-        className={[
-          "pointer-events-none absolute right-4 top-4 rounded-full px-2 py-1 text-xs",
-          "transition-all duration-200 ease-in-out",
-          checked ? "bg-white/10 text-white/90" : "bg-black/20 text-white/50",
-        ].join(" ")}
-      >
-        {checked ? "Selected" : "Select"}
-      </div> */}
     </button>
   );
 }
@@ -208,7 +195,6 @@ function PlanRow({ plan, isOpen, onToggleMenu, onActionPick }) {
     plan["number of cleanings"] || "-"
   } cleanings`;
 
-  // const cleanDate = getCleanDate_(plan);
   const schedulePreview = getSchedulePreview_(plan);
 
   return (
@@ -239,7 +225,6 @@ function PlanRow({ plan, isOpen, onToggleMenu, onActionPick }) {
           </div>
         </div>
 
-        {/* 3 dots */}
         <button
           type="button"
           className={[
@@ -264,7 +249,7 @@ function PlanRow({ plan, isOpen, onToggleMenu, onActionPick }) {
         </button>
       </div>
 
-      {/* Dropdown menu */}
+      {/* ✅ Dropdown menu (UPDATED: removed schedule option) */}
       {isOpen ? (
         <div
           className={[
@@ -275,8 +260,10 @@ function PlanRow({ plan, isOpen, onToggleMenu, onActionPick }) {
         >
           {[
             { key: "address", label: "Change address of the plan" },
+
+            // ✅ ONLY Step-4 option now (updates plan + schedule + extras)
             { key: "plan", label: "Modify the contracted plan" },
-            { key: "schedule", label: "View/Change DATE, TIME & EXTRAS" },
+
             { key: "additional", label: "View/Change additional instructions" },
           ].map((item) => (
             <button
@@ -318,23 +305,19 @@ export default function Step2Email({
   plans,
   fetchPlans,
 
-  // plan selection state (still used by "Next" validation)
   selectedPlanId,
   setSelectedPlanId,
   modifyAction,
   setModifyAction,
 
-  // ✅ NEW: 3-dots menu -> instant jump
   onPlanActionSelect,
   setMsg,
   touchedNext,
   onHireFromRegistered,
 }) {
-  // Which plan menu is open
   const [openMenuId, setOpenMenuId] = useState("");
-
-  // Close dropdown on outside click
   const wrapRef = useRef(null);
+
   useEffect(() => {
     function onDocClick(e) {
       if (!wrapRef.current) return;
@@ -345,6 +328,7 @@ export default function Step2Email({
   }, []);
 
   const hasEmail = useMemo(() => !!email.trim(), [email]);
+
   const showEmailError =
     touchedNext &&
     (!email.trim() || !/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email.trim()));
@@ -355,6 +339,7 @@ export default function Step2Email({
     touchedNext &&
     userType === "new" &&
     (!phone.trim() || phone.replace(/[^\d]/g, "").length < 7);
+
   const showExistingActionError =
     touchedNext && userType === "registered" && !action;
 
@@ -367,7 +352,6 @@ export default function Step2Email({
 
   return (
     <div className="mt-7 space-y-4 sm:space-y-5" ref={wrapRef}>
-      {/* ✅ Email */}
       <SectionCard title="Email *" subtitle="Enter your email to continue.">
         <InputField
           label="Email Address"
@@ -379,7 +363,6 @@ export default function Step2Email({
         />
       </SectionCard>
 
-      {/* ✅ NEW USER */}
       {userType === "new" && (
         <SectionCard
           title="New User"
@@ -410,7 +393,6 @@ export default function Step2Email({
         </SectionCard>
       )}
 
-      {/* ✅ EXISTING USER */}
       {userType === "registered" && (
         <SectionCard
           title="Existing User"
@@ -422,7 +404,6 @@ export default function Step2Email({
           }
           error={showExistingActionError}
         >
-          {/* Actions (Hire / Plans) */}
           <div className="grid gap-3 sm:grid-cols-2">
             <ActionCard
               checked={action === "hire"}
@@ -432,13 +413,11 @@ export default function Step2Email({
                 setOpenMenuId("");
                 setMsg("");
 
-                // ✅ IMPORTANT: switch to NEW flow, go to Step 1, keep email
                 if (onHireFromRegistered) {
                   onHireFromRegistered();
                   return;
                 }
 
-                // fallback (should not happen)
                 setAction("hire");
                 setSelectedPlanId("");
                 setModifyAction("");
@@ -453,18 +432,14 @@ export default function Step2Email({
               onSelect={() => {
                 setAction("plans");
                 setOpenMenuId("");
-                // reset plan selection (user will choose from list)
                 setSelectedPlanId("");
                 setModifyAction("");
-                // ✅ No manual fetch required (parent auto-fetches),
-                // but we keep this immediate fetch for better UX.
                 if (email.trim()) fetchPlans();
               }}
               name="existingAction"
             />
           </div>
 
-          {/* Plans list */}
           {action === "plans" && hasEmail ? (
             <div
               className={[
@@ -485,7 +460,6 @@ export default function Step2Email({
                   Active / Pending Plans
                 </div>
 
-                {/* Keep refresh button (optional), but not required anymore */}
                 <button
                   type="button"
                   onClick={fetchPlans}
@@ -504,6 +478,7 @@ export default function Step2Email({
                   {plansLoading ? "Loading..." : "Refresh"}
                 </button>
               </div>
+
               {showPlanPickError ? (
                 <div className="mt-3 text-sm text-red-300">
                   Please select a plan and choose an action from{" "}
@@ -533,7 +508,6 @@ export default function Step2Email({
                 <div className="mt-4 space-y-3">
                   {plans.map((p) => {
                     const id = p.id;
-                    console.log("p---------->>>>>", p);
                     const isOpen = openMenuId === id;
 
                     return (
@@ -541,19 +515,16 @@ export default function Step2Email({
                         key={id}
                         plan={p}
                         isOpen={isOpen}
-                        onToggleMenu={(planId) => {
-                          setOpenMenuId(isOpen ? "" : planId);
-                        }}
+                        onToggleMenu={(planId) =>
+                          setOpenMenuId(isOpen ? "" : planId)
+                        }
                         onActionPick={(planId, actionKey) => {
-                          // ✅ keep old validation logic working
                           setSelectedPlanId(planId);
                           setModifyAction(actionKey);
 
-                          // ✅ instant jump + prefill handled in parent
                           if (onPlanActionSelect)
                             onPlanActionSelect(planId, actionKey);
 
-                          // close menu
                           setOpenMenuId("");
                           setMsg("");
                         }}
@@ -567,15 +538,14 @@ export default function Step2Email({
                       THEME.textMuted,
                     ].join(" ")}
                   >
-                    Tip: click <span className="text-white/70">⋯</span> on a
-                    plan and choose an action to open it instantly.
+                    Tip: click <span className="text-white/70">⋯</span> and
+                    choose an action.
                   </div>
                 </div>
               )}
             </div>
           ) : null}
 
-          {/* Small helper when no email */}
           {action === "plans" && !hasEmail ? (
             <div
               className={["mt-4 text-xs sm:text-sm", THEME.textMuted].join(" ")}
