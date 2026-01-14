@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { getSheetsClient } from "@/lib/googleSheet";
-import { randomUUID } from "crypto"; // ✅ UUID v4
+import { randomUUID } from "crypto";
 
 export const runtime = "nodejs";
 const SHEET = "Submissions";
@@ -10,16 +10,19 @@ function norm(s) {
   return String(s || "").trim().toLowerCase();
 }
 
-/** UUID v4 generator (safe, no collision) */
+/** stable plan id */
 function genId() {
   return `DUO-${randomUUID()}`;
 }
 
+/** per-cleaning id */
+function genCleaningId() {
+  return `CLN-${randomUUID()}`;
+}
+
 const REQUIRED_HEADERS = [
-  // ✅ ID column (NEW)
   "ID",
 
-  // keep your old headers too (so nothing breaks)
   "Timestamp",
   "Full Name",
   "Email",
@@ -31,7 +34,6 @@ const REQUIRED_HEADERS = [
   "Status",
   "Attachment URL",
 
-  // Duo0 fields
   "User Type",
   "Flow Action",
 
@@ -50,15 +52,14 @@ const REQUIRED_HEADERS = [
   "Time Window",
   "Extras (JSON)",
 
-  // Step 6 fields
   "Cleaning Instructions",
   "Favorite Duo0",
   "Type of service to be performed",
+
+  // ✅ NEW COLUMN
+  "Cleaning IDs (JSON)",
 ];
 
-/**
- * Ensure required headers exist (non-breaking)
- */
 async function ensureHeaders({ sheets, spreadsheetId }) {
   const headerRes = await sheets.spreadsheets.values.get({
     spreadsheetId,
@@ -68,10 +69,7 @@ async function ensureHeaders({ sheets, spreadsheetId }) {
   const currentHeaders = headerRes.data.values?.[0] || [];
   const currentNorm = currentHeaders.map(norm);
 
-  const missing = REQUIRED_HEADERS.filter(
-    (h) => !currentNorm.includes(norm(h))
-  );
-
+  const missing = REQUIRED_HEADERS.filter((h) => !currentNorm.includes(norm(h)));
   if (missing.length === 0) return currentHeaders;
 
   const newHeaders = [...currentHeaders, ...missing];
@@ -86,6 +84,16 @@ async function ensureHeaders({ sheets, spreadsheetId }) {
   return newHeaders;
 }
 
+/** Build cleanings array for first submit */
+function buildInitialCleaningObjects_(numberCleanings) {
+  const n = Math.max(0, Math.min(12, Number(numberCleanings || 0) || 0));
+  const arr = [];
+  for (let i = 0; i < n; i++) {
+    arr.push({ cleaningId: genCleaningId(), eventId: "", duoId: "" });
+  }
+  return arr;
+}
+
 export async function POST(req) {
   try {
     const body = await req.json();
@@ -93,21 +101,20 @@ export async function POST(req) {
     const sheets = getSheetsClient();
     const spreadsheetId = process.env.SPREADSHEET_ID;
 
-    // ✅ ensure headers exist
     const headersRaw = await ensureHeaders({ sheets, spreadsheetId });
     const headers = headersRaw.map(norm);
 
-    // ✅ generate UUID v4 once
     const submissionId = genId();
 
-    const payload = {
-      // ✅ ID
-      id: submissionId,
+    // ✅ NEW: build cleaning IDs array synced to number of cleanings
+    const cleaningObjs = buildInitialCleaningObjects_(
+      body.plan?.numberCleanings
+    );
 
-      // timestamp
+    const payload = {
+      id: submissionId,
       timestamp: new Date().toISOString(),
 
-      // old format fields
       "full name": body.fullName || "",
       email: body.email || "",
       phone: body.phone || "",
@@ -118,7 +125,6 @@ export async function POST(req) {
       status: body.status || "Pending",
       "attachment url": body.attachmentUrl || "",
 
-      // Duo0
       "user type": body.userType || "",
       "flow action": body.flowAction || "",
 
@@ -137,15 +143,14 @@ export async function POST(req) {
       "time window": body.schedule?.timeWindow || "",
       "extras (json)": JSON.stringify(body.schedule?.extras || {}),
 
-      // Step 6
-      "cleaning instructions":
-        body.additional?.cleaningInstructions || "",
+      "cleaning instructions": body.additional?.cleaningInstructions || "",
       "favorite duo0": body.additional?.favoriteDuo || "",
-      "type of service to be performed":
-        body.additional?.serviceType || "",
+      "type of service to be performed": body.additional?.serviceType || "",
+
+      // ✅ NEW
+      "cleaning ids (json)": JSON.stringify(cleaningObjs),
     };
 
-    // ✅ map dynamically by header row
     const row = headers.map((h) => payload[h] ?? "");
 
     await sheets.spreadsheets.values.append({
@@ -155,11 +160,7 @@ export async function POST(req) {
       requestBody: { values: [row] },
     });
 
-    // ✅ return ID for frontend / debugging
-    return NextResponse.json({
-      ok: true,
-      id: submissionId,
-    });
+    return NextResponse.json({ ok: true, id: submissionId });
   } catch (e) {
     return NextResponse.json(
       { ok: false, error: e?.message || "Failed to submit" },

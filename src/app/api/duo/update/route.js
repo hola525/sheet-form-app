@@ -1,16 +1,19 @@
+// ✅ FILE: app/api/duo/update/route.js  (or your update api file)
+// ✅ CHANGE: Cleanings (JSON) will ALWAYS be truncated/expanded to match "Number of Cleanings"
+// ✅ CHANGE: Use the NEW number of cleanings during plan_full/all (not old sheet value)
+// ✅ SAFE: Does not disturb your other logic
+
 import { NextResponse } from "next/server";
 import { getSheetsClient } from "@/lib/googleSheet";
+import { randomUUID } from "crypto";
 
 export const runtime = "nodejs";
 const SHEET = "Submissions";
 
 function norm(s) {
-  return String(s || "")
-    .trim()
-    .toLowerCase();
+  return String(s || "").trim().toLowerCase();
 }
 
-// Convert 0 -> A, 25 -> Z, 26 -> AA
 function colToA1_(colIndex) {
   let n = colIndex + 1;
   let s = "";
@@ -20,6 +23,50 @@ function colToA1_(colIndex) {
     n = Math.floor((n - 1) / 26);
   }
   return s;
+}
+
+// ✅ per-cleaning id
+function genCleaningId() {
+  return `CLN-${randomUUID()}`;
+}
+
+function safeParseJson_(v, fallback) {
+  try {
+    if (!v) return fallback;
+    const obj = JSON.parse(v);
+    return obj ?? fallback;
+  } catch {
+    return fallback;
+  }
+}
+
+/**
+ * ✅ Sync cleaning objects by INDEX:
+ * - Keep existing objects for same indexes (preserve eventId/duoId)
+ * - Add new objects if targetN bigger
+ * - Truncate if targetN smaller
+ */
+function syncCleaningObjects_(existingArr, targetN) {
+  const n = Math.max(0, Math.min(12, Number(targetN || 0) || 0));
+  const prev = Array.isArray(existingArr) ? existingArr : [];
+  const next = [];
+
+  for (let i = 0; i < n; i++) {
+    const old = prev[i];
+    if (old && typeof old === "object") {
+      next.push({
+        cleaningId:
+          String(old.cleaningId || old.cleaningID || old.id || "") ||
+          genCleaningId(),
+        eventId: String(old.eventId || ""),
+        duoId: String(old.duoId || ""),
+      });
+    } else {
+      next.push({ cleaningId: genCleaningId(), eventId: "", duoId: "" });
+    }
+  }
+
+  return next;
 }
 
 export async function POST(req) {
@@ -55,6 +102,7 @@ export async function POST(req) {
     if (rowIndex === -1) throw new Error("Record not found");
 
     const rowNumber = rowIndex + 2;
+    const existingRow = rows[rowIndex] || [];
 
     const col = (name) => headers.indexOf(norm(name));
     const updates = [];
@@ -95,10 +143,9 @@ export async function POST(req) {
       );
     }
 
-    // ✅ NEW: plan_full = Step 4 single update (PLAN + SCHEDULE + EXTRAS)
+    // ✅ plan_full = Step 4 single update (PLAN + SCHEDULE + EXTRAS)
     if (updateMode === "plan_full") {
       updates.push(
-        // plan fields
         { col: col("Duration Hours"), val: payload.plan?.durationHours || "" },
         {
           col: col("Number of Cleanings"),
@@ -106,7 +153,6 @@ export async function POST(req) {
         },
         { col: col("Auto Renew"), val: payload.plan?.autoRenew || "" },
 
-        // schedule fields
         { col: col("Schedule Date"), val: payload.schedule?.date || "" },
         { col: col("Schedule Time"), val: payload.schedule?.time || "" },
         { col: col("Time Window"), val: payload.schedule?.timeWindow || "" },
@@ -133,6 +179,43 @@ export async function POST(req) {
           val: payload.additional?.serviceType || "",
         }
       );
+    }
+
+    /**
+     * ✅ CLEANINGS (JSON) SYNC
+     * Must ALWAYS match Number of Cleanings when Step-4 updates happen.
+     * - If reduced: truncate objects
+     * - If increased: add new objects
+     * - Keep existing objects by index (preserve eventId/duoId)
+     */
+    const cleaningIdsCol =
+      col("Cleanings (JSON)") >= 0
+        ? col("Cleanings (JSON)")
+        : col("Cleaning IDs (JSON)");
+
+    const numCleaningsCol = col("Number of Cleanings");
+
+    // ✅ IMPORTANT: Only sync when Step-4 changes (plan_full or all)
+    const shouldSyncCleaningIds =
+      updateMode === "plan_full" || updateMode === "all";
+
+    if (cleaningIdsCol >= 0 && numCleaningsCol >= 0 && shouldSyncCleaningIds) {
+      // ✅ IMPORTANT: use the NEW value (the one we are saving now)
+      // If plan_full/all => payload.plan.numberCleanings is the truth
+      const targetN =
+        payload.plan?.numberCleanings ??
+        existingRow[numCleaningsCol] ??
+        "";
+
+      const existingCleaningIdsJson = existingRow[cleaningIdsCol] || "";
+      const existingArr = safeParseJson_(existingCleaningIdsJson, []);
+
+      const synced = syncCleaningObjects_(existingArr, targetN);
+
+      updates.push({
+        col: cleaningIdsCol,
+        val: JSON.stringify(synced),
+      });
     }
 
     const data = updates
