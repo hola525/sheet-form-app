@@ -56,8 +56,8 @@ const REQUIRED_HEADERS = [
   "Favorite Duo0",
   "Type of service to be performed",
 
-  // ✅ NEW COLUMN
-  "Cleaning IDs (JSON)",
+  // ✅ ONLY ONE COLUMN (NO MORE DUPLICATES)
+  "Cleanings (JSON)",
 ];
 
 async function ensureHeaders({ sheets, spreadsheetId }) {
@@ -106,10 +106,7 @@ export async function POST(req) {
 
     const submissionId = genId();
 
-    // ✅ NEW: build cleaning IDs array synced to number of cleanings
-    const cleaningObjs = buildInitialCleaningObjects_(
-      body.plan?.numberCleanings
-    );
+    const cleaningObjs = buildInitialCleaningObjects_(body.plan?.numberCleanings);
 
     const payload = {
       id: submissionId,
@@ -147,8 +144,8 @@ export async function POST(req) {
       "favorite duo0": body.additional?.favoriteDuo || "",
       "type of service to be performed": body.additional?.serviceType || "",
 
-      // ✅ NEW
-      "cleaning ids (json)": JSON.stringify(cleaningObjs),
+      // ✅ SAVE INTO Cleanings (JSON)
+      "cleanings (json)": JSON.stringify(cleaningObjs),
     };
 
     const row = headers.map((h) => payload[h] ?? "");

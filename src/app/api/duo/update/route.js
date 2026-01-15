@@ -188,10 +188,8 @@ export async function POST(req) {
      * - If increased: add new objects
      * - Keep existing objects by index (preserve eventId/duoId)
      */
-    const cleaningIdsCol =
-      col("Cleanings (JSON)") >= 0
-        ? col("Cleanings (JSON)")
-        : col("Cleaning IDs (JSON)");
+    const cleaningIdsCol = col("Cleanings (JSON)");
+
 
     const numCleaningsCol = col("Number of Cleanings");
 
