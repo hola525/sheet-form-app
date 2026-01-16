@@ -1,7 +1,6 @@
-// ✅ FILE: app/api/duo/update/route.js  (or your update api file)
-// ✅ CHANGE: Cleanings (JSON) will ALWAYS be truncated/expanded to match "Number of Cleanings"
-// ✅ CHANGE: Use the NEW number of cleanings during plan_full/all (not old sheet value)
-// ✅ SAFE: Does not disturb your other logic
+// ✅ FILE: app/api/duo/update/route.js
+// ✅ SAFE VERSION – header-based, JSON-safe, future-proof
+// ❌ No risky logic changed
 
 import { NextResponse } from "next/server";
 import { getSheetsClient } from "@/lib/googleSheet";
@@ -10,10 +9,19 @@ import { randomUUID } from "crypto";
 export const runtime = "nodejs";
 const SHEET = "Submissions";
 
+/**
+ * ✅ Strong normalize
+ * - Handles hidden unicode chars
+ * - Must MATCH submit API normalization
+ */
 function norm(s) {
-  return String(s || "").trim().toLowerCase();
+  return String(s || "")
+    .replace(/[\uFEFF\u200B\u200C\u200D\u00A0]/g, " ")
+    .trim()
+    .toLowerCase();
 }
 
+/** Convert column index → A1 letter (0 → A) */
 function colToA1_(colIndex) {
   let n = colIndex + 1;
   let s = "";
@@ -25,11 +33,12 @@ function colToA1_(colIndex) {
   return s;
 }
 
-// ✅ per-cleaning id
+/** per-cleaning id */
 function genCleaningId() {
   return `CLN-${randomUUID()}`;
 }
 
+/** Safe JSON parse */
 function safeParseJson_(v, fallback) {
   try {
     if (!v) return fallback;
@@ -41,10 +50,10 @@ function safeParseJson_(v, fallback) {
 }
 
 /**
- * ✅ Sync cleaning objects by INDEX:
- * - Keep existing objects for same indexes (preserve eventId/duoId)
- * - Add new objects if targetN bigger
- * - Truncate if targetN smaller
+ * ✅ Sync cleaning objects by INDEX
+ * - Preserves eventId & duoId
+ * - Truncates if reduced
+ * - Adds new objects if increased
  */
 function syncCleaningObjects_(existingArr, targetN) {
   const n = Math.max(0, Math.min(12, Number(targetN || 0) || 0));
@@ -87,6 +96,11 @@ export async function POST(req) {
     const sheets = getSheetsClient();
     const spreadsheetId = process.env.SPREADSHEET_ID;
 
+    /**
+     * ✅ Read header + data
+     * - Limited range for safety
+     * - Headers must be in row 1
+     */
     const res = await sheets.spreadsheets.values.get({
       spreadsheetId,
       range: `${SHEET}!A1:ZZ`,
@@ -101,13 +115,14 @@ export async function POST(req) {
     const rowIndex = rows.findIndex((r) => r[idCol] === id);
     if (rowIndex === -1) throw new Error("Record not found");
 
-    const rowNumber = rowIndex + 2;
+    const rowNumber = rowIndex + 2; // + header
     const existingRow = rows[rowIndex] || [];
 
+    /** Helper to find column index by header name */
     const col = (name) => headers.indexOf(norm(name));
     const updates = [];
 
-    // ✅ ADDRESS (Step 3)
+    // ✅ ADDRESS
     if (updateMode === "address" || updateMode === "all") {
       updates.push(
         { col: col("Province"), val: payload.address?.province || "" },
@@ -118,7 +133,7 @@ export async function POST(req) {
       );
     }
 
-    // ✅ PLAN only (legacy support)
+    // ✅ PLAN
     if (updateMode === "plan" || updateMode === "all") {
       updates.push(
         { col: col("Duration Hours"), val: payload.plan?.durationHours || "" },
@@ -130,7 +145,7 @@ export async function POST(req) {
       );
     }
 
-    // ✅ SCHEDULE only (legacy support)
+    // ✅ SCHEDULE
     if (updateMode === "schedule" || updateMode === "all") {
       updates.push(
         { col: col("Schedule Date"), val: payload.schedule?.date || "" },
@@ -143,7 +158,7 @@ export async function POST(req) {
       );
     }
 
-    // ✅ plan_full = Step 4 single update (PLAN + SCHEDULE + EXTRAS)
+    // ✅ PLAN FULL (Step 4)
     if (updateMode === "plan_full") {
       updates.push(
         { col: col("Duration Hours"), val: payload.plan?.durationHours || "" },
@@ -152,7 +167,6 @@ export async function POST(req) {
           val: payload.plan?.numberCleanings || "",
         },
         { col: col("Auto Renew"), val: payload.plan?.autoRenew || "" },
-
         { col: col("Schedule Date"), val: payload.schedule?.date || "" },
         { col: col("Schedule Time"), val: payload.schedule?.time || "" },
         { col: col("Time Window"), val: payload.schedule?.timeWindow || "" },
@@ -163,7 +177,7 @@ export async function POST(req) {
       );
     }
 
-    // ✅ ADDITIONAL (Step 5)
+    // ✅ ADDITIONAL
     if (updateMode === "additional" || updateMode === "all") {
       updates.push(
         {
@@ -182,40 +196,31 @@ export async function POST(req) {
     }
 
     /**
-     * ✅ CLEANINGS (JSON) SYNC
-     * Must ALWAYS match Number of Cleanings when Step-4 updates happen.
-     * - If reduced: truncate objects
-     * - If increased: add new objects
-     * - Keep existing objects by index (preserve eventId/duoId)
+     * ✅ CLEANINGS (JSON) sync
+     * Only when plan changes
      */
-    const cleaningIdsCol = col("Cleanings (JSON)");
+    const cleaningCol = col("Cleanings (JSON)");
+    const numCleanCol = col("Number of Cleanings");
 
+    const shouldSync = updateMode === "plan_full" || updateMode === "all";
 
-    const numCleaningsCol = col("Number of Cleanings");
-
-    // ✅ IMPORTANT: Only sync when Step-4 changes (plan_full or all)
-    const shouldSyncCleaningIds =
-      updateMode === "plan_full" || updateMode === "all";
-
-    if (cleaningIdsCol >= 0 && numCleaningsCol >= 0 && shouldSyncCleaningIds) {
-      // ✅ IMPORTANT: use the NEW value (the one we are saving now)
-      // If plan_full/all => payload.plan.numberCleanings is the truth
+    if (cleaningCol >= 0 && numCleanCol >= 0 && shouldSync) {
       const targetN =
-        payload.plan?.numberCleanings ??
-        existingRow[numCleaningsCol] ??
-        "";
+        payload.plan?.numberCleanings ?? existingRow[numCleanCol] ?? "";
 
-      const existingCleaningIdsJson = existingRow[cleaningIdsCol] || "";
-      const existingArr = safeParseJson_(existingCleaningIdsJson, []);
-
+      const existingJson = existingRow[cleaningCol] || "";
+      const existingArr = safeParseJson_(existingJson, []);
       const synced = syncCleaningObjects_(existingArr, targetN);
 
       updates.push({
-        col: cleaningIdsCol,
+        col: cleaningCol,
         val: JSON.stringify(synced),
       });
     }
 
+    /**
+     * ✅ Build batch update ranges
+     */
     const data = updates
       .filter((u) => u.col >= 0)
       .map((u) => ({
@@ -223,10 +228,13 @@ export async function POST(req) {
         values: [[u.val]],
       }));
 
+    /**
+     * ✅ RAW write (JSON-safe, no column spill)
+     */
     await sheets.spreadsheets.values.batchUpdate({
       spreadsheetId,
       requestBody: {
-        valueInputOption: "USER_ENTERED",
+        valueInputOption: "RAW",
         data,
       },
     });
