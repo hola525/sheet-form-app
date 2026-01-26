@@ -58,18 +58,11 @@ function SectionCard({ title, subtitle, rightSlot, children, error }) {
     >
       <div className="flex items-start justify-between gap-4">
         <div className="min-w-0">
-          <div
-            className={[
-              "text-base sm:text-lg font-semibold",
-              THEME.textTitle,
-            ].join(" ")}
-          >
+          <div className={["text-base sm:text-lg font-semibold", THEME.textTitle].join(" ")}>
             {title}
           </div>
           {subtitle ? (
-            <div
-              className={["mt-1 text-sm sm:text-base", THEME.textSub].join(" ")}
-            >
+            <div className={["mt-1 text-sm sm:text-base", THEME.textSub].join(" ")}>
               {subtitle}
             </div>
           ) : null}
@@ -93,11 +86,7 @@ function InputField({
 }) {
   return (
     <div>
-      <label
-        className={["text-sm sm:text-base font-medium", THEME.textSub].join(
-          " "
-        )}
-      >
+      <label className={["text-sm sm:text-base font-medium", THEME.textSub].join(" ")}>
         {label}
       </label>
 
@@ -126,72 +115,12 @@ function InputField({
   );
 }
 
-function ActionCard({
-  checked,
-  title,
-  description,
-  onSelect,
-  name = "action",
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onSelect}
-      className={[
-        "group relative w-full rounded-2xl border px-4 py-4 text-left",
-        "transition-all duration-200 ease-in-out",
-        "cursor-pointer select-none",
-        "hover:-translate-y-[1px] hover:shadow-lg hover:shadow-black/20",
-        "active:translate-y-0 active:scale-[0.99]",
-        THEME.focusRing,
-        checked
-          ? `${THEME.cardBorderActive} ${THEME.cardBgActive}`
-          : `${THEME.cardBorder} bg-black/20 ${THEME.hoverBg}`,
-      ].join(" ")}
-    >
-      <div className="flex items-start gap-4">
-        <span className="mt-1 inline-flex min-h-6 min-w-6 items-center justify-center rounded-full border border-white/20 bg-black/30 transition-all duration-200 ease-in-out group-hover:border-white/30">
-          <span
-            className={[
-              "min-h-3.5 min-w-3.5 rounded-full transition-all duration-200 ease-in-out",
-              checked ? "bg-white opacity-100" : "bg-white opacity-0",
-            ].join(" ")}
-          />
-          <input
-            type="radio"
-            name={name}
-            checked={checked}
-            onChange={onSelect}
-            className="sr-only"
-          />
-        </span>
-
-        <div className="min-w-0">
-          <div
-            className={[
-              "text-base sm:text-lg font-semibold",
-              THEME.textTitle,
-            ].join(" ")}
-          >
-            {title}
-          </div>
-          <div
-            className={["mt-1 text-sm sm:text-base", THEME.textSub].join(" ")}
-          >
-            {description}
-          </div>
-        </div>
-      </div>
-    </button>
-  );
-}
-
 // ✅ Plan row (3-dots menu) — UI only
 function PlanRow({ plan, isOpen, onToggleMenu, onActionPick }) {
   const id = plan.id;
-  const label = `${plan["street/number"] || "-"}, ${
-    plan["city/town"] || "-"
-  }, ${plan["province"] || "-"} — ${plan["duration hours"] || "-"}h × ${
+  const label = `${plan["street/number"] || "-"}, ${plan["city/town"] || "-"}, ${
+    plan["province"] || "-"
+  } — ${plan["duration hours"] || "-"}h × ${
     plan["number of cleanings"] || "-"
   } cleanings`;
 
@@ -208,18 +137,11 @@ function PlanRow({ plan, isOpen, onToggleMenu, onActionPick }) {
     >
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
-          <div
-            className={[
-              "text-sm sm:text-base font-semibold",
-              THEME.textTitle,
-            ].join(" ")}
-          >
+          <div className={["text-sm sm:text-base font-semibold", THEME.textTitle].join(" ")}>
             <div className="truncate">{label}</div>
           </div>
 
-          <div
-            className={["mt-1 text-xs sm:text-sm", THEME.textMuted].join(" ")}
-          >
+          <div className={["mt-1 text-xs sm:text-sm", THEME.textMuted].join(" ")}>
             Date and Time:{" "}
             <span className="text-white/70 break-words">{schedulePreview}</span>
           </div>
@@ -249,7 +171,6 @@ function PlanRow({ plan, isOpen, onToggleMenu, onActionPick }) {
         </button>
       </div>
 
-      {/* ✅ Dropdown menu (UPDATED: removed schedule option) */}
       {isOpen ? (
         <div
           className={[
@@ -260,10 +181,7 @@ function PlanRow({ plan, isOpen, onToggleMenu, onActionPick }) {
         >
           {[
             { key: "address", label: "Change address of the plan" },
-
-            // ✅ ONLY Step-4 option now (updates plan + schedule + extras)
             { key: "plan", label: "Modify the contracted plan" },
-
             { key: "additional", label: "View/Change additional instructions" },
           ].map((item) => (
             <button
@@ -299,8 +217,7 @@ export default function Step2Email({
   setFullName,
   phone,
   setPhone,
-  action,
-  setAction,
+
   plansLoading,
   plans,
   fetchPlans,
@@ -313,6 +230,7 @@ export default function Step2Email({
   onPlanActionSelect,
   setMsg,
   touchedNext,
+
   onHireFromRegistered,
 }) {
   const [openMenuId, setOpenMenuId] = useState("");
@@ -340,30 +258,32 @@ export default function Step2Email({
     userType === "new" &&
     (!phone.trim() || phone.replace(/[^\d]/g, "").length < 7);
 
-  const showExistingActionError =
-    touchedNext && userType === "registered" && !action;
-
   const showPlanPickError =
     touchedNext &&
     userType === "registered" &&
-    action === "plans" &&
     hasEmail &&
     (!selectedPlanId || !modifyAction);
 
   return (
     <div className="mt-7 space-y-4 sm:space-y-5" ref={wrapRef}>
-      <SectionCard title="Email *" subtitle="Enter your email to continue.">
+      <SectionCard title="Email *" subtitle="You can edit your email if needed.">
         <InputField
           label="Email Address"
           value={email}
-          onChange={(e) => setEmail(e.target.value)}
+          onChange={(e) => {
+            setEmail(e.target.value);
+            // if user edits email, clear plan selection to avoid wrong updates
+            setSelectedPlanId("");
+            setModifyAction("");
+            setOpenMenuId("");
+          }}
           placeholder="Enter your email"
           type="email"
           error={showEmailError}
         />
       </SectionCard>
 
-      {userType === "new" && (
+      {userType === "new" ? (
         <SectionCard
           title="New User"
           subtitle="Please provide your contact details."
@@ -391,168 +311,106 @@ export default function Step2Email({
             />
           </div>
         </SectionCard>
-      )}
-
-      {userType === "registered" && (
+      ) : (
         <SectionCard
-          title="Existing User"
-          subtitle="Choose an action to continue."
+          title="Existing Plans"
+          subtitle="Select a plan and choose what you want to change."
           rightSlot={
             <div className="hidden sm:block rounded-full border border-white/10 bg-black/20 px-3 py-1 text-xs text-white/70">
               Step 2 of 5
             </div>
           }
-          error={showExistingActionError}
+          error={showPlanPickError}
         >
-          <div className="grid gap-3 sm:grid-cols-2">
-            <ActionCard
-              checked={action === "hire"}
-              title="Hire cleaning services"
-              description="Create a new cleaning request with this email."
-              onSelect={() => {
-                setOpenMenuId("");
-                setMsg("");
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div className={["text-sm sm:text-base", THEME.textMuted].join(" ")}>
+              If you want a new request with this email, click “Hire new cleaning”.
+            </div>
 
-                if (onHireFromRegistered) {
-                  onHireFromRegistered();
-                  return;
-                }
+            <div className="flex gap-2">
+              <button
+                type="button"
+                onClick={fetchPlans}
+                disabled={plansLoading || !hasEmail}
+                className={[
+                  "rounded-xl border px-3 py-2 text-xs sm:text-sm",
+                  "transition-all duration-200 ease-in-out",
+                  "cursor-pointer",
+                  "hover:bg-white/10 active:scale-[0.98]",
+                  THEME.cardBorder,
+                  THEME.focusRing,
+                  plansLoading || !hasEmail ? "opacity-70 cursor-not-allowed" : "",
+                ].join(" ")}
+              >
+                {plansLoading ? "Loading..." : "Refresh"}
+              </button>
 
-                setAction("hire");
-                setSelectedPlanId("");
-                setModifyAction("");
-              }}
-              name="existingAction"
-            />
-
-            <ActionCard
-              checked={action === "plans"}
-              title="View Active Plans"
-              description="See and update your existing cleaning plans."
-              onSelect={() => {
-                setAction("plans");
-                setOpenMenuId("");
-                setSelectedPlanId("");
-                setModifyAction("");
-                if (email.trim()) fetchPlans();
-              }}
-              name="existingAction"
-            />
+              <button
+                type="button"
+                onClick={() => {
+                  setMsg("");
+                  setOpenMenuId("");
+                  setSelectedPlanId("");
+                  setModifyAction("");
+                  if (onHireFromRegistered) onHireFromRegistered();
+                }}
+                className={[
+                  "rounded-xl bg-white px-3 py-2 text-xs sm:text-sm font-semibold text-black",
+                  "hover:bg-zinc-200 active:scale-[0.98]",
+                  "transition-all duration-200 ease-in-out",
+                  "cursor-pointer",
+                ].join(" ")}
+              >
+                Hire new cleaning
+              </button>
+            </div>
           </div>
 
-          {action === "plans" && hasEmail ? (
-            <div
-              className={[
-                "mt-5 rounded-2xl border bg-black/20 p-4 sm:p-5",
-                showPlanPickError
-                  ? "border-red-500/70 bg-red-500/5"
-                  : "border-zinc-700/60",
-                "transition-all duration-200 ease-in-out",
-              ].join(" ")}
-            >
-              <div className="flex items-center justify-between gap-3">
-                <div
-                  className={[
-                    "text-base sm:text-lg font-semibold",
-                    THEME.textTitle,
-                  ].join(" ")}
-                >
-                  Active / Pending Plans
-                </div>
+          {showPlanPickError ? (
+            <div className="mt-3 text-sm text-red-300">
+              Please select a plan and choose an action from{" "}
+              <span className="text-white/70">⋯</span>.
+            </div>
+          ) : null}
 
-                <button
-                  type="button"
-                  onClick={fetchPlans}
-                  disabled={plansLoading}
-                  title="Refresh plans"
-                  className={[
-                    "rounded-xl border px-3 py-2 text-xs sm:text-sm",
-                    "transition-all duration-200 ease-in-out",
-                    "cursor-pointer",
-                    "hover:bg-white/10 active:scale-[0.98]",
-                    THEME.cardBorder,
-                    THEME.focusRing,
-                    plansLoading ? "opacity-70 cursor-not-allowed" : "",
-                  ].join(" ")}
-                >
-                  {plansLoading ? "Loading..." : "Refresh"}
-                </button>
+          {plansLoading ? (
+            <div className={["mt-3 text-sm sm:text-base", THEME.textMuted].join(" ")}>
+              Loading…
+            </div>
+          ) : plans.length === 0 ? (
+            <div className={["mt-3 text-sm sm:text-base", THEME.textMuted].join(" ")}>
+              No plans found for this email.
+            </div>
+          ) : (
+            <div className="mt-4 space-y-3">
+              {plans.map((p) => {
+                const id = p.id;
+                const isOpen = openMenuId === id;
+
+                return (
+                  <PlanRow
+                    key={id}
+                    plan={p}
+                    isOpen={isOpen}
+                    onToggleMenu={(planId) => setOpenMenuId(isOpen ? "" : planId)}
+                    onActionPick={(planId, actionKey) => {
+                      setSelectedPlanId(planId);
+                      setModifyAction(actionKey);
+
+                      if (onPlanActionSelect) onPlanActionSelect(planId, actionKey);
+
+                      setOpenMenuId("");
+                      setMsg("");
+                    }}
+                  />
+                );
+              })}
+
+              <div className={["pt-1 text-xs sm:text-sm", THEME.textMuted].join(" ")}>
+                Tip: click <span className="text-white/70">⋯</span> and choose an action.
               </div>
-
-              {showPlanPickError ? (
-                <div className="mt-3 text-sm text-red-300">
-                  Please select a plan and choose an action from{" "}
-                  <span className="text-white/70">⋯</span>.
-                </div>
-              ) : null}
-
-              {plansLoading ? (
-                <div
-                  className={[
-                    "mt-3 text-sm sm:text-base",
-                    THEME.textMuted,
-                  ].join(" ")}
-                >
-                  Loading…
-                </div>
-              ) : plans.length === 0 ? (
-                <div
-                  className={[
-                    "mt-3 text-sm sm:text-base",
-                    THEME.textMuted,
-                  ].join(" ")}
-                >
-                  No plans found for this email.
-                </div>
-              ) : (
-                <div className="mt-4 space-y-3">
-                  {plans.map((p) => {
-                    const id = p.id;
-                    const isOpen = openMenuId === id;
-
-                    return (
-                      <PlanRow
-                        key={id}
-                        plan={p}
-                        isOpen={isOpen}
-                        onToggleMenu={(planId) =>
-                          setOpenMenuId(isOpen ? "" : planId)
-                        }
-                        onActionPick={(planId, actionKey) => {
-                          setSelectedPlanId(planId);
-                          setModifyAction(actionKey);
-
-                          if (onPlanActionSelect)
-                            onPlanActionSelect(planId, actionKey);
-
-                          setOpenMenuId("");
-                          setMsg("");
-                        }}
-                      />
-                    );
-                  })}
-
-                  <div
-                    className={[
-                      "pt-1 text-xs sm:text-sm",
-                      THEME.textMuted,
-                    ].join(" ")}
-                  >
-                    Tip: click <span className="text-white/70">⋯</span> and
-                    choose an action.
-                  </div>
-                </div>
-              )}
             </div>
-          ) : null}
-
-          {action === "plans" && !hasEmail ? (
-            <div
-              className={["mt-4 text-xs sm:text-sm", THEME.textMuted].join(" ")}
-            >
-              Enter your email above to load your plans.
-            </div>
-          ) : null}
+          )}
         </SectionCard>
       )}
     </div>

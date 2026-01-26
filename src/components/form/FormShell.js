@@ -4,7 +4,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { Loader2 } from "lucide-react";
 
-import Step1UserType from "./steps/Step1UserType";
+import Step1EmailLookup from "./steps/Step1EmailLookup";
 import Step2Email from "./steps/Step2Email";
 import Step3Address from "./steps/Step3Address";
 import Step4Plan from "./steps/Step4Plan";
@@ -99,13 +99,15 @@ function LoadingOverlay({ show, label }) {
 export default function FormShell() {
   const [step, setStep] = useState(1);
 
-  // Step 1
+  // ✅ NEW FLOW: Step 1 is email-only, userType decided automatically
   const [userType, setUserType] = useState(""); // "new" | "registered"
 
-  // Step 2
+  // Step 1/2
   const [email, setEmail] = useState("");
   const [fullName, setFullName] = useState("");
   const [phone, setPhone] = useState("");
+
+  // Keep these to avoid touching your existing logic
   const [action, setAction] = useState(""); // "hire" | "plans"
 
   // Registered plans flow
@@ -119,7 +121,7 @@ export default function FormShell() {
   const [details, setDetails] = useState("");
   const [propertyType, setPropertyType] = useState("");
 
-  // Step 4 - Plan + Schedule + Extras (ONE screen)
+  // Step 4 - Plan + Schedule + Extras
   const [durationHours, setDurationHours] = useState("");
   const [numberCleanings, setNumberCleanings] = useState("");
   const [autoRenew, setAutoRenew] = useState("");
@@ -139,7 +141,7 @@ export default function FormShell() {
   const [favoriteDuo, setFavoriteDuo] = useState("");
   const [serviceType, setServiceType] = useState("");
 
-  // Registered flow - plans display
+  // Plans display
   const [plansLoading, setPlansLoading] = useState(false);
   const [plans, setPlans] = useState([]);
 
@@ -150,10 +152,6 @@ export default function FormShell() {
 
   // Config
   const [cfg, setCfg] = useState({
-    departments: [],
-    categories: [],
-    priorities: [],
-    statuses: [],
     provinces: [],
     propertyTypes: [],
     durationHours: [],
@@ -171,10 +169,6 @@ export default function FormShell() {
         const data = await res.json();
         if (data.ok) {
           setCfg({
-            departments: data.departments || [],
-            categories: data.categories || [],
-            priorities: data.priorities || [],
-            statuses: data.statuses || [],
             provinces: data.provinces || [],
             propertyTypes: data.propertyTypes || [],
             durationHours: data.durationHours || [],
@@ -229,40 +223,33 @@ export default function FormShell() {
     );
   }, [numberCleanings]);
 
-  // ✅ Registered plans flow helper
   const isRegisteredPlansFlow = userType === "registered" && action === "plans";
 
-  // ✅ NEW: updateMode mapping
-  // - address => updates address only (step 3)
-  // - plan => updates BOTH plan + schedule + extras (step 4)
-  // - additional => updates additional only (step 5)
   function getUpdateModeForCurrentStep_() {
     if (!isRegisteredPlansFlow) return "";
     if (!modifyAction) return "";
 
     if (step === 3 && modifyAction === "address") return "address";
-
-    // ✅ plan now means: plan + schedule (one option only)
     if (step === 4 && modifyAction === "plan") return "plan_full";
-
     if (step === 5 && modifyAction === "additional") return "additional";
     return "";
   }
 
-  // Validation
+  // ✅ Step 1 validation (email only)
   function canNextStep1() {
-    return userType === "new" || userType === "registered";
+    return !!email.trim() && isValidEmail_(email);
   }
 
   function canNextStep2() {
     if (!email.trim()) return false;
+    if (!isValidEmail_(email)) return false;
 
-    if (userType === "new") return fullName.trim() && phone.trim();
+    if (userType === "new")
+      return fullName.trim() && phone.trim() && isValidPhone_(phone);
 
     if (userType === "registered") {
-      if (action === "hire") return true;
-      if (action === "plans") return !!selectedPlanId && !!modifyAction;
-      return false;
+      // user will typically choose from ⋯, but keep Next supported
+      return !!selectedPlanId && !!modifyAction;
     }
     return false;
   }
@@ -287,7 +274,6 @@ export default function FormShell() {
       const selected = extrasByCleaning[key] || [];
       if (!Array.isArray(selected) || selected.length === 0) return false;
     }
-
     return true;
   }
 
@@ -299,8 +285,9 @@ export default function FormShell() {
 
   function getStepError_(stepNum) {
     if (stepNum === 1) {
-      if (!userType)
-        return "Please select Email Type (New Email or Registered Email).";
+      if (!email.trim()) return "Please enter your email address.";
+      if (!isValidEmail_(email))
+        return "Please enter a valid email address (example: name@email.com).";
       return "";
     }
 
@@ -317,16 +304,14 @@ export default function FormShell() {
       }
 
       if (userType === "registered") {
-        if (!action) return "Please choose what action you want to take.";
-        if (action === "plans") {
-          if (!selectedPlanId)
-            return "Please select a plan first (and pick an action).";
-          if (!modifyAction)
-            return "Please choose what you want to change for the selected plan.";
-        }
+        if (!selectedPlanId)
+          return "Please select a plan first (and pick an action).";
+        if (!modifyAction)
+          return "Please choose what you want to change for the selected plan.";
         return "";
       }
-      return "";
+
+      return "Please continue from Step 1.";
     }
 
     if (stepNum === 3) {
@@ -385,11 +370,46 @@ export default function FormShell() {
       if (!res.ok || !data.ok)
         throw new Error(data?.error || "Failed to load plans");
       setPlans(data.plans || []);
+      return data.plans || [];
     } catch (e) {
       setMsg(e.message);
+      return [];
     } finally {
       setPlansLoading(false);
     }
+  }
+
+  // ✅ Step1: decide flow automatically
+  async function lookupEmailAndRoute_() {
+    setMsg("");
+    setTouchedNext(1);
+
+    const err = getStepError_(1);
+    if (err) {
+      setMsg(`❌ ${err}`);
+      return;
+    }
+
+    const foundPlans = await fetchPlans();
+
+    if (Array.isArray(foundPlans) && foundPlans.length > 0) {
+      // Registered path
+      setUserType("registered");
+      setAction("plans");
+      setSelectedPlanId("");
+      setModifyAction("");
+      setStep(2);
+      return;
+    }
+
+    // New user path
+    setUserType("new");
+    setAction("hire");
+    setSelectedPlanId("");
+    setModifyAction("");
+    setFullName("");
+    setPhone("");
+    setStep(2);
   }
 
   function prefillFromSelectedPlan_(forcedId) {
@@ -441,13 +461,14 @@ export default function FormShell() {
 
   function onPlanActionSelect_(planId, actionKey) {
     setAction("plans");
+    setUserType("registered");
     setSelectedPlanId(planId);
     setModifyAction(actionKey);
 
     prefillFromSelectedPlan_(planId);
 
     if (actionKey === "address") return setStep(3);
-    if (actionKey === "plan") return setStep(4); // ✅ plan includes schedule+extras now
+    if (actionKey === "plan") return setStep(4);
     if (actionKey === "additional") return setStep(5);
   }
 
@@ -480,13 +501,12 @@ export default function FormShell() {
       const data = await res.json();
       if (!res.ok || !data.ok) throw new Error(data?.error || "Update failed");
 
-      // ✅ After any partial update, go back to plans list
       if (isRegisteredPlansFlow && updateMode && updateMode !== "all") {
         setMsg("✅ Updated successfully!");
         setStep(2);
         setSelectedPlanId("");
         setModifyAction("");
-        fetchPlans();
+        await fetchPlans();
         return;
       }
 
@@ -510,19 +530,12 @@ export default function FormShell() {
       const payload = {
         userType: userType === "new" ? "New" : "Registered",
         flowAction:
-          action === "hire"
-            ? "Hire cleaning services"
-            : action === "plans"
-            ? "View Active Plans"
-            : "",
-
+          userType === "new" ? "Hire cleaning services" : "View Active Plans",
         email,
         fullName: userType === "new" ? fullName : "",
         phone: userType === "new" ? phone : "",
-
         address: { province, city, street, details, propertyType },
         plan: { durationHours, numberCleanings, autoRenew },
-
         schedule: {
           date: scheduleDateCSV,
           time: scheduleTimeCSV,
@@ -586,9 +599,14 @@ export default function FormShell() {
   }
 
   // Navigation
-  function goNext() {
+  async function goNext() {
     setMsg("");
     setTouchedNext(step);
+
+    if (step === 1) {
+      await lookupEmailAndRoute_();
+      return;
+    }
 
     const err = getStepError_(step);
     if (err) {
@@ -596,12 +614,9 @@ export default function FormShell() {
       return;
     }
 
-    if (step === 1 && canNextStep1()) return setStep(2);
-
     if (step === 2 && canNextStep2()) {
-      if (userType === "registered" && action === "plans") {
+      if (userType === "registered") {
         prefillFromSelectedPlan_();
-
         if (modifyAction === "address") return setStep(3);
         if (modifyAction === "plan") return setStep(4);
         if (modifyAction === "additional") return setStep(5);
@@ -677,19 +692,19 @@ export default function FormShell() {
   const isSubmitBlocked = !canSubmitFinal();
   const isUpdateBlocked = showPartialUpdate && !!getStepError_(step);
 
+  // ✅ Registered -> Hire new cleaning (keep email, go Step2 new-user details)
   function startNewHireKeepEmail_() {
     setMsg("");
     setTouchedNext(0);
 
     setUserType("new");
-    setStep(1);
+    setAction("hire");
+
+    setSelectedPlanId("");
+    setModifyAction("");
 
     setFullName("");
     setPhone("");
-
-    setAction("");
-    setSelectedPlanId("");
-    setModifyAction("");
 
     setProvince("");
     setCity("");
@@ -715,6 +730,8 @@ export default function FormShell() {
     setServiceType("");
 
     setPlans([]);
+
+    setStep(2);
   }
 
   const overlayLabel = saving
@@ -751,9 +768,9 @@ export default function FormShell() {
           ) : null}
 
           {step === 1 && (
-            <Step1UserType
-              userType={userType}
-              setUserType={setUserType}
+            <Step1EmailLookup
+              email={email}
+              setEmail={setEmail}
               touchedNext={touchedNext === 1}
             />
           )}
@@ -767,8 +784,6 @@ export default function FormShell() {
               setFullName={setFullName}
               phone={phone}
               setPhone={setPhone}
-              action={action}
-              setAction={setAction}
               plansLoading={plansLoading}
               plans={plans}
               fetchPlans={fetchPlans}
