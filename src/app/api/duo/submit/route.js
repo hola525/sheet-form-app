@@ -74,9 +74,6 @@ const REQUIRED_HEADERS = [
   "Cleanings (JSON)",
 
   "Email Sent (Request)",
-  "Email Sent At (Request)",
-  "Email Error (Request)",
-
   "Email Sent (Reminder) (JSON)",
   "Email Sent At (Reminder) (JSON)",
   "Email Error (Reminder)",
@@ -188,9 +185,6 @@ export async function POST(req) {
       "Cleanings (JSON)": JSON.stringify(cleaningObjs),
 
       "Email Sent (Request)": "",
-      "Email Sent At (Request)": "",
-      "Email Error (Request)": "",
-
       "Email Sent (Reminder) (JSON)": "",
       "Email Sent At (Reminder) (JSON)": "",
       "Email Error (Reminder)": "",

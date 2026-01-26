@@ -12,10 +12,29 @@ function todayISOInArgentina_() {
   });
   return fmt.format(new Date()); // "YYYY-MM-DD"
 }
-function isPastDate_(yyyyMmDd) {
+function addDaysISOArgentina_(days) {
+  const base = new Date();
+  base.setDate(base.getDate() + Number(days || 0));
+  const fmt = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "America/Argentina/Buenos_Aires",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  });
+  return fmt.format(base); // YYYY-MM-DD in Argentina tz
+}
+
+/**
+ * Lock rule:
+ * - lock if date is today OR tomorrow (or any earlier date)
+ * - but we will apply it only in EDIT MODE (registered modify)
+ */
+function isLocked1DayBefore_(yyyyMmDd) {
   const d = String(yyyyMmDd || "").trim();
   if (!d) return false;
-  return d < todayISOInArgentina_();
+
+  const tomorrowISO = addDaysISOArgentina_(1); // tomorrow in Argentina tz
+  return d <= tomorrowISO;
 }
 
 const THEME = {
@@ -42,11 +61,18 @@ function SectionCard({ title, subtitle, rightSlot, error, children }) {
     >
       <div className="flex items-start justify-between gap-4">
         <div className="min-w-0">
-          <div className={["text-base sm:text-lg font-semibold", THEME.textTitle].join(" ")}>
+          <div
+            className={[
+              "text-base sm:text-lg font-semibold",
+              THEME.textTitle,
+            ].join(" ")}
+          >
             {title}
           </div>
           {subtitle ? (
-            <div className={["mt-1 text-sm sm:text-base", THEME.textSub].join(" ")}>
+            <div
+              className={["mt-1 text-sm sm:text-base", THEME.textSub].join(" ")}
+            >
               {subtitle}
             </div>
           ) : null}
@@ -61,7 +87,9 @@ function SectionCard({ title, subtitle, rightSlot, error, children }) {
 
 function FieldLabel({ children }) {
   return (
-    <label className={["text-sm sm:text-base font-medium", THEME.textSub].join(" ")}>
+    <label
+      className={["text-sm sm:text-base font-medium", THEME.textSub].join(" ")}
+    >
       {children}
     </label>
   );
@@ -127,9 +155,13 @@ function InputField({ type, value, onChange, disabled, min, error }) {
             "text-base sm:text-lg",
             "bg-black/30 outline-none",
             "transition-all duration-200 ease-in-out",
-            isDateTime ? "cursor-pointer pr-12 duo-native-datetime" : "cursor-text",
+            isDateTime
+              ? "cursor-pointer pr-12 duo-native-datetime"
+              : "cursor-text",
             THEME.focusRing,
-            error ? "border-red-500/70 focus:border-red-400" : `${THEME.cardBorder} focus:border-white/40`,
+            error
+              ? "border-red-500/70 focus:border-red-400"
+              : `${THEME.cardBorder} focus:border-white/40`,
             disabled ? "opacity-60 cursor-not-allowed" : "",
           ].join(" ")}
         />
@@ -149,7 +181,9 @@ function InputField({ type, value, onChange, disabled, min, error }) {
                 : "cursor-pointer border-white/10 bg-black/25 hover:bg-white/10",
               error ? "border-red-500/40" : "",
             ].join(" ")}
-            aria-label={type === "date" ? "Open date picker" : "Open time picker"}
+            aria-label={
+              type === "date" ? "Open date picker" : "Open time picker"
+            }
           >
             {type === "date" ? (
               <CalendarDays className="h-5 w-5 text-white/90" />
@@ -192,7 +226,11 @@ function RadioPill({ checked, label, onSelect, error, disabled }) {
             ].join(" ")}
           />
         </span>
-        <div className={["text-sm sm:text-base font-medium", THEME.textSub].join(" ")}>
+        <div
+          className={["text-sm sm:text-base font-medium", THEME.textSub].join(
+            " "
+          )}
+        >
           {label}
         </div>
       </div>
@@ -218,7 +256,9 @@ function CheckboxItem({ checked, disabled, label, onToggle }) {
       className={[
         "group flex w-full items-center gap-3 rounded-xl border px-3 py-2 text-left",
         "transition-all duration-200 ease-in-out",
-        disabled ? "opacity-60 cursor-not-allowed" : "cursor-pointer hover:bg-black/30",
+        disabled
+          ? "opacity-60 cursor-not-allowed"
+          : "cursor-pointer hover:bg-black/30",
         THEME.focusRing,
         "border-zinc-700/60 bg-black/20",
       ].join(" ")}
@@ -227,7 +267,9 @@ function CheckboxItem({ checked, disabled, label, onToggle }) {
         className={[
           "flex min-h-5 min-w-5 items-center justify-center rounded-md border",
           "transition-all duration-200 ease-in-out",
-          checked ? "border-white/40 bg-white/10" : "border-white/15 bg-black/30",
+          checked
+            ? "border-white/40 bg-white/10"
+            : "border-white/15 bg-black/30",
         ].join(" ")}
         aria-hidden="true"
       >
@@ -292,10 +334,14 @@ export default function Step4Plan({
 
     setExtrasByCleaning((prev) => {
       const next = { ...(prev || {}) };
-      const current = Array.isArray(next[cleaningKey]) ? [...next[cleaningKey]] : [];
+      const current = Array.isArray(next[cleaningKey])
+        ? [...next[cleaningKey]]
+        : [];
 
       const has = current.includes(extraName);
-      let updated = has ? current.filter((x) => x !== extraName) : [...current, extraName];
+      let updated = has
+        ? current.filter((x) => x !== extraName)
+        : [...current, extraName];
 
       const nothing = "Nothing";
       if (extraName === nothing && !has) {
@@ -336,14 +382,23 @@ export default function Step4Plan({
     const list = cleaningLabels.map((label, idx) => {
       const key = label;
       const dateVal = scheduleDates?.[idx] || "";
-      const locked = planLockedAll || isPastDate_(dateVal); // ✅ lock all OR past date
+      // const locked = planLockedAll || isPastDate_(dateVal); // ✅ lock all OR past date
+      const isEditMode = Number(origPlanN || 0) > 0;
+      const isOriginalCleaning = isEditMode && idx < Number(origPlanN || 0);
+      
+      const locked =
+        planLockedAll ||
+        (isOriginalCleaning && isLocked1DayBefore_(dateVal));
+      
       const timeVal = scheduleTimes?.[idx] || "";
       const selectedExtras = extrasByCleaning?.[key] || [];
 
       const dateErr = !!touchedNext && !locked && !dateVal;
       const timeErr = !!touchedNext && !locked && !timeVal;
       const extrasErr =
-        !!touchedNext && !locked && (!Array.isArray(selectedExtras) || selectedExtras.length === 0);
+        !!touchedNext &&
+        !locked &&
+        (!Array.isArray(selectedExtras) || selectedExtras.length === 0);
 
       const any = dateErr || timeErr || extrasErr;
       if (any) scheduleHasAnyError = true;
@@ -352,7 +407,15 @@ export default function Step4Plan({
     });
 
     return { list, scheduleHasAnyError };
-  }, [cleaningLabels, scheduleDates, scheduleTimes, extrasByCleaning, touchedNext, planLockedAll]);
+  }, [
+    cleaningLabels,
+    scheduleDates,
+    scheduleTimes,
+    extrasByCleaning,
+    touchedNext,
+    planLockedAll,
+    origPlanN,
+  ]);
 
   const hasAnyError =
     showDurationError ||
@@ -376,11 +439,13 @@ export default function Step4Plan({
       >
         {planLockedAll ? (
           <div className="mb-4 rounded-2xl border border-red-500/40 bg-red-500/10 px-4 py-3 text-sm text-red-200">
-            🔒 This plan is locked because all cleanings have passed. You cannot this plan.
+            🔒 This plan is locked because all cleanings have passed. You cannot
+            this plan.
           </div>
         ) : origPlanN ? (
           <div className="mb-4 rounded-2xl border border-white/10 bg-black/20 px-4 py-3 text-sm text-white/75">
-            Note: You cannot reduce number of cleanings below <b>{origPlanN}</b>. If you increase it, old cleanings keep their schedule & extras.
+            Note: You cannot reduce number of cleanings below <b>{origPlanN}</b>
+            . If you increase it, old cleanings keep their schedule & extras.
           </div>
         ) : null}
 
@@ -409,7 +474,8 @@ export default function Step4Plan({
               onChange={(e) => {
                 const val = e.target.value;
                 // ✅ delegate to FormShell strict logic
-                if (typeof onChangeNumberCleanings === "function") onChangeNumberCleanings(val);
+                if (typeof onChangeNumberCleanings === "function")
+                  onChangeNumberCleanings(val);
                 else setNumberCleanings(val);
               }}
               error={showNumCleaningsError}
@@ -454,11 +520,19 @@ export default function Step4Plan({
                 : THEME.innerBorder,
             ].join(" ")}
           >
-            <div className={["text-base sm:text-lg font-semibold", THEME.textTitle].join(" ")}>
+            <div
+              className={[
+                "text-base sm:text-lg font-semibold",
+                THEME.textTitle,
+              ].join(" ")}
+            >
               Schedule & extras
             </div>
-            <div className={["mt-1 text-xs sm:text-sm", THEME.textMuted].join(" ")}>
-              Past dates are locked. If the full plan is locked, please add new plan.
+            <div
+              className={["mt-1 text-xs sm:text-sm", THEME.textMuted].join(" ")}
+            >
+              Past dates are locked. If the full plan is locked, please add new
+              plan.
             </div>
 
             <div className="mt-4 max-h-[65vh] overflow-y-auto pr-1">
@@ -466,7 +540,14 @@ export default function Step4Plan({
                 {cleaningLabels.map((label, idx) => {
                   const key = label;
                   const dateVal = scheduleDates?.[idx] || "";
-                  const locked = planLockedAll || isPastDate_(dateVal);
+                  // const locked = planLockedAll || isPastDate_(dateVal);
+                  const isEditMode = Number(origPlanN || 0) > 0;
+                  const isOriginalCleaning = isEditMode && idx < Number(origPlanN || 0);
+                  
+                  const locked =
+                    planLockedAll ||
+                    (isOriginalCleaning && isLocked1DayBefore_(dateVal));
+                  
                   const selectedExtras = extrasByCleaning?.[key] || [];
                   const errs = perCleaningErrors.list[idx] || {};
                   const cardBorder = errs.any
@@ -485,7 +566,12 @@ export default function Step4Plan({
                     >
                       <div className="flex items-center justify-between gap-3">
                         <div className="min-w-0">
-                          <div className={["text-base sm:text-lg font-semibold", THEME.textTitle].join(" ")}>
+                          <div
+                            className={[
+                              "text-base sm:text-lg font-semibold",
+                              THEME.textTitle,
+                            ].join(" ")}
+                          >
                             {label}{" "}
                             {locked ? (
                               <span className="ml-2 text-xs sm:text-sm text-zinc-400">
@@ -538,7 +624,12 @@ export default function Step4Plan({
                       </div>
 
                       <div className="mt-5">
-                        <div className={["text-sm sm:text-base font-semibold", THEME.textSub].join(" ")}>
+                        <div
+                          className={[
+                            "text-sm sm:text-base font-semibold",
+                            THEME.textSub,
+                          ].join(" ")}
+                        >
                           Extras (select any) *
                         </div>
 
@@ -559,7 +650,7 @@ export default function Step4Plan({
 
                         <FieldError
                           show={errs.extrasErr}
-                          message='Select at least one option (choose “Nothing” if no extras).'
+                          message="Select at least one option (choose “Nothing” if no extras)."
                         />
                       </div>
                     </div>
@@ -567,7 +658,11 @@ export default function Step4Plan({
                 })}
               </div>
 
-              <div className={["mt-4 text-xs sm:text-sm", THEME.textMuted].join(" ")}>
+              <div
+                className={["mt-4 text-xs sm:text-sm", THEME.textMuted].join(
+                  " "
+                )}
+              >
                 Tip: This section scrolls when you have many cleanings.
               </div>
             </div>

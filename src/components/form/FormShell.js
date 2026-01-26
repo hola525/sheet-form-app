@@ -629,6 +629,9 @@ export default function FormShell() {
     setFavoriteDuo("");
     setServiceType("");
     setPlans([]);
+    setOrigPlanN(0);
+    setOrigPlanDates([]);
+    setPlanLockedAll(false);
   }
 
   // Navigation
@@ -813,6 +816,9 @@ export default function FormShell() {
     setPlans([]);
 
     setStep(2);
+    setOrigPlanN(0);
+    setOrigPlanDates([]);
+    setPlanLockedAll(false);
   }
 
   const overlayLabel = saving
