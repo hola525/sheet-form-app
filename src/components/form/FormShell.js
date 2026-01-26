@@ -149,6 +149,10 @@ export default function FormShell() {
   const [msg, setMsg] = useState("");
   const [saving, setSaving] = useState(false);
   const [touchedNext, setTouchedNext] = useState(0);
+  // ✅ NEW — original plan snapshot (for strict edit rules)
+  const [origPlanN, setOrigPlanN] = useState(0);
+  const [origPlanDates, setOrigPlanDates] = useState([]); // array of YYYY-MM-DD
+  const [planLockedAll, setPlanLockedAll] = useState(false);
 
   // Config
   const [cfg, setCfg] = useState({
@@ -161,6 +165,26 @@ export default function FormShell() {
     citiesByProvince: {},
     serviceTypes: [],
   });
+  // ✅ YYYY-MM-DD in Argentina timezone (stable for your Argentina client)
+  function todayISOInArgentina_() {
+    const fmt = new Intl.DateTimeFormat("en-CA", {
+      timeZone: "America/Argentina/Buenos_Aires",
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+    });
+    return fmt.format(new Date()); // "YYYY-MM-DD"
+  }
+
+  function areAllDatesPassed_(datesArr, n) {
+    const today = todayISOInArgentina_();
+    const take = (Array.isArray(datesArr) ? datesArr : []).slice(0, n);
+    if (!n || take.length < n) return false;
+    // must have all dates and all must be < today
+    return take.every(
+      (d) => String(d || "").trim() && String(d).trim() < today
+    );
+  }
 
   useEffect(() => {
     async function load() {
@@ -437,6 +461,15 @@ export default function FormShell() {
 
     setScheduleDates(splitCSV_(dStr));
     setScheduleTimes(splitCSV_(tStr));
+    // ✅ store original plan values for strict edit rules
+    const existingN = Number(plan["number of cleanings"] || 0) || 0;
+    const originalDatesArr = splitCSV_(dStr);
+
+    setOrigPlanN(existingN);
+    setOrigPlanDates(originalDatesArr);
+
+    // ✅ lock the whole Step 4 if ALL cleanings are passed
+    setPlanLockedAll(areAllDatesPassed_(originalDatesArr, existingN));
 
     try {
       const ex = plan["extras (json)"] ? JSON.parse(plan["extras (json)"]) : {};
@@ -658,13 +691,61 @@ export default function FormShell() {
     return submitAll();
   }
 
-  function onChangeNumberCleanings_() {
-    setScheduleDates([]);
-    setScheduleTimes([]);
-    setExtrasByCleaning({});
-    setDate("");
-    setTime("");
-    setExtras({});
+  function onChangeNumberCleanings_(nextValue) {
+    // This function is now used ONLY for Step 4 logic
+    // It will behave strictly only when editing an existing plan (modifyAction === "plan")
+
+    const isStrictEdit =
+      userType === "registered" &&
+      action === "plans" &&
+      modifyAction === "plan";
+
+    // ✅ NEW HIRE FLOW (or other flows): keep your old behavior
+    if (!isStrictEdit) {
+      setNumberCleanings(nextValue);
+      setScheduleDates([]);
+      setScheduleTimes([]);
+      setExtrasByCleaning({});
+      setDate("");
+      setTime("");
+      setExtras({});
+      return;
+    }
+
+    // ✅ STRICT EDIT MODE (Modify contracted plan)
+    if (planLockedAll) {
+      setMsg("❌ This plan is locked because all cleanings have passed.");
+      return;
+    }
+
+    const targetN = Number(nextValue || 0) || 0;
+
+    // ✅ cannot reduce below original
+    if (origPlanN && targetN < origPlanN) {
+      setMsg(`❌ You cannot reduce number of cleanings below ${origPlanN}.`);
+      return;
+    }
+
+    setMsg("");
+    setNumberCleanings(nextValue);
+
+    // ✅ preserve old dates/times, only extend for new cleanings
+    setScheduleDates((prev) => {
+      const cur = Array.isArray(prev) ? [...prev] : [];
+      while (cur.length < targetN) cur.push("");
+      return cur; // no truncation because reduction is blocked
+    });
+
+    setScheduleTimes((prev) => {
+      const cur = Array.isArray(prev) ? [...prev] : [];
+      while (cur.length < targetN) cur.push("");
+      return cur;
+    });
+
+    // ✅ preserve old extras; new ones will be empty until user selects
+    setExtrasByCleaning((prev) => {
+      return { ...(prev || {}) };
+    });
   }
 
   const updateMode = getUpdateModeForCurrentStep_();
@@ -828,6 +909,7 @@ export default function FormShell() {
               durationOptions={durationOptions}
               numberCleaningsOptions={numberCleaningsOptions}
               renewOptions={renewOptions}
+              // ✅ IMPORTANT: we pass the strict handler (now expects nextValue)
               onChangeNumberCleanings={onChangeNumberCleanings_}
               cleaningLabels={cleaningLabels}
               scheduleDates={scheduleDates}
@@ -837,6 +919,9 @@ export default function FormShell() {
               extrasByCleaning={extrasByCleaning}
               setExtrasByCleaning={setExtrasByCleaning}
               extrasCheckboxOptions={extrasCheckboxOptions}
+              // ✅ NEW
+              planLockedAll={planLockedAll}
+              origPlanN={origPlanN}
               touchedNext={touchedNext}
             />
           )}
