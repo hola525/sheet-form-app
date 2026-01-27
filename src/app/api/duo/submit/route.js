@@ -75,11 +75,7 @@ const REQUIRED_HEADERS = [
 
   "Email Sent (Request)",
   "Email Sent (Reminder) (JSON)",
-  "Email Sent At (Reminder) (JSON)",
-  "Email Error (Reminder)",
-  "Email Sent At (Completed) (JSON)",
   "Email Sent (Completed) (JSON)",
-  "Email Error (Completed)",
 ];
 
 async function ensureHeaders({ sheets, spreadsheetId }) {
@@ -186,11 +182,7 @@ export async function POST(req) {
 
       "Email Sent (Request)": "",
       "Email Sent (Reminder) (JSON)": "",
-      "Email Sent At (Reminder) (JSON)": "",
-      "Email Error (Reminder)": "",
-      "Email Sent At (Completed) (JSON)": "",
       "Email Sent (Completed) (JSON)": "",
-      "Email Error (Completed)": "",
     };
 
     // build row EXACT header length
