@@ -310,7 +310,7 @@ export default function Step4Plan({
   // ✅ NEW
   planLockedAll,
   origPlanN,
-
+  origPlanDates,
   touchedNext,
 }) {
   function setDateAt_(idx, value) {
@@ -385,11 +385,15 @@ export default function Step4Plan({
       // const locked = planLockedAll || isPastDate_(dateVal); // ✅ lock all OR past date
       const isEditMode = Number(origPlanN || 0) > 0;
       const isOriginalCleaning = isEditMode && idx < Number(origPlanN || 0);
-      
+
+      const baseDateForLock = isOriginalCleaning
+        ? origPlanDates?.[idx] || dateVal
+        : dateVal;
+
       const locked =
         planLockedAll ||
-        (isOriginalCleaning && isLocked1DayBefore_(dateVal));
-      
+        (isOriginalCleaning && isLocked1DayBefore_(baseDateForLock));
+
       const timeVal = scheduleTimes?.[idx] || "";
       const selectedExtras = extrasByCleaning?.[key] || [];
 
@@ -542,12 +546,18 @@ export default function Step4Plan({
                   const dateVal = scheduleDates?.[idx] || "";
                   // const locked = planLockedAll || isPastDate_(dateVal);
                   const isEditMode = Number(origPlanN || 0) > 0;
-                  const isOriginalCleaning = isEditMode && idx < Number(origPlanN || 0);
-                  
+                  const isOriginalCleaning =
+                    isEditMode && idx < Number(origPlanN || 0);
+
+                  const baseDateForLock = isOriginalCleaning
+                    ? origPlanDates?.[idx] || dateVal
+                    : dateVal;
+
                   const locked =
                     planLockedAll ||
-                    (isOriginalCleaning && isLocked1DayBefore_(dateVal));
-                  
+                    (isOriginalCleaning &&
+                      isLocked1DayBefore_(baseDateForLock));
+
                   const selectedExtras = extrasByCleaning?.[key] || [];
                   const errs = perCleaningErrors.list[idx] || {};
                   const cardBorder = errs.any
