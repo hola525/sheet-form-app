@@ -1,22 +1,40 @@
 // ✅ FILE: app/duo/steps/Step4Plan.js
-// UI-only upgrade (same style rules as Step 1 & Step 3)
-// ✅ Mobile responsive
-// ✅ Bigger fonts + better spacing
-// ✅ Smooth transitions + focus rings + cursor pointer
-// ✅ Scroll ONLY in "Schedule & Extras" section when many cleanings
-// ✅ Adds red border on required fields when user clicks Next (touchedNext)
-// ✅ NO business logic change
 import { CalendarDays, Clock3 } from "lucide-react";
-import { useRef } from "react";
+import { useMemo, useRef } from "react";
 
-// --- helpers (date-only compare, no timezone headaches) ---
-function todayISO_() {
-  return new Date().toISOString().slice(0, 10); // "YYYY-MM-DD"
+// ✅ YYYY-MM-DD in Argentina timezone
+function todayISOInArgentina_() {
+  const fmt = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "America/Argentina/Buenos_Aires",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  });
+  return fmt.format(new Date()); // "YYYY-MM-DD"
 }
-function isPastDate_(yyyyMmDd) {
+function addDaysISOArgentina_(days) {
+  const base = new Date();
+  base.setDate(base.getDate() + Number(days || 0));
+  const fmt = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "America/Argentina/Buenos_Aires",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  });
+  return fmt.format(base); // YYYY-MM-DD in Argentina tz
+}
+
+/**
+ * Lock rule:
+ * - lock if date is today OR tomorrow (or any earlier date)
+ * - but we will apply it only in EDIT MODE (registered modify)
+ */
+function isLocked1DayBefore_(yyyyMmDd) {
   const d = String(yyyyMmDd || "").trim();
   if (!d) return false;
-  return d < todayISO_(); // lexicographic works for YYYY-MM-DD
+
+  const tomorrowISO = addDaysISOArgentina_(1); // tomorrow in Argentina tz
+  return d <= tomorrowISO;
 }
 
 const THEME = {
@@ -24,11 +42,9 @@ const THEME = {
   cardBorder: "border-zinc-700/60",
   innerBg: "bg-black/20",
   innerBorder: "border-zinc-700/60",
-
   textTitle: "text-zinc-100",
   textSub: "text-zinc-300",
   textMuted: "text-zinc-400",
-
   focusRing:
     "focus-visible:ring-2 focus-visible:ring-white/40 focus-visible:ring-offset-0",
 };
@@ -45,11 +61,18 @@ function SectionCard({ title, subtitle, rightSlot, error, children }) {
     >
       <div className="flex items-start justify-between gap-4">
         <div className="min-w-0">
-          <div className={["text-base sm:text-lg font-semibold", THEME.textTitle].join(" ")}>
+          <div
+            className={[
+              "text-base sm:text-lg font-semibold",
+              THEME.textTitle,
+            ].join(" ")}
+          >
             {title}
           </div>
           {subtitle ? (
-            <div className={["mt-1 text-sm sm:text-base", THEME.textSub].join(" ")}>
+            <div
+              className={["mt-1 text-sm sm:text-base", THEME.textSub].join(" ")}
+            >
               {subtitle}
             </div>
           ) : null}
@@ -64,7 +87,9 @@ function SectionCard({ title, subtitle, rightSlot, error, children }) {
 
 function FieldLabel({ children }) {
   return (
-    <label className={["text-sm sm:text-base font-medium", THEME.textSub].join(" ")}>
+    <label
+      className={["text-sm sm:text-base font-medium", THEME.textSub].join(" ")}
+    >
       {children}
     </label>
   );
@@ -75,20 +100,23 @@ function FieldError({ show, message = "This field is required." }) {
   return <div className="mt-2 text-sm text-red-300">{message}</div>;
 }
 
-function SelectField({ value, onChange, children, error }) {
+function SelectField({ value, onChange, children, error, disabled }) {
   return (
     <>
       <select
         value={value}
         onChange={onChange}
+        disabled={disabled}
         className={[
           "mt-2 w-full rounded-2xl border px-4 py-3 sm:py-3.5",
           "text-base sm:text-lg",
           "bg-black/30 outline-none",
           "transition-all duration-200 ease-in-out",
-          "cursor-pointer",
+          disabled ? "opacity-60 cursor-not-allowed" : "cursor-pointer",
           THEME.focusRing,
-          error ? "border-red-500/70 focus:border-red-400" : `${THEME.cardBorder} focus:border-white/40`,
+          error
+            ? "border-red-500/70 focus:border-red-400"
+            : `${THEME.cardBorder} focus:border-white/40`,
         ].join(" ")}
       >
         {children}
@@ -105,14 +133,10 @@ function InputField({ type, value, onChange, disabled, min, error }) {
 
   function openNativePicker_() {
     if (!inputRef.current || disabled) return;
-
-    // ✅ Chrome / Edge support this
     if (typeof inputRef.current.showPicker === "function") {
       inputRef.current.showPicker();
       return;
     }
-
-    // ✅ fallback
     inputRef.current.focus();
   }
 
@@ -131,7 +155,9 @@ function InputField({ type, value, onChange, disabled, min, error }) {
             "text-base sm:text-lg",
             "bg-black/30 outline-none",
             "transition-all duration-200 ease-in-out",
-            isDateTime ? "cursor-pointer pr-12 duo-native-datetime" : "cursor-text",
+            isDateTime
+              ? "cursor-pointer pr-12 duo-native-datetime"
+              : "cursor-text",
             THEME.focusRing,
             error
               ? "border-red-500/70 focus:border-red-400"
@@ -140,7 +166,6 @@ function InputField({ type, value, onChange, disabled, min, error }) {
           ].join(" ")}
         />
 
-        {/* ✅ Nice clear icon (instead of old native one) */}
         {isDateTime ? (
           <button
             type="button"
@@ -156,7 +181,9 @@ function InputField({ type, value, onChange, disabled, min, error }) {
                 : "cursor-pointer border-white/10 bg-black/25 hover:bg-white/10",
               error ? "border-red-500/40" : "",
             ].join(" ")}
-            aria-label={type === "date" ? "Open date picker" : "Open time picker"}
+            aria-label={
+              type === "date" ? "Open date picker" : "Open time picker"
+            }
           >
             {type === "date" ? (
               <CalendarDays className="h-5 w-5 text-white/90" />
@@ -172,16 +199,16 @@ function InputField({ type, value, onChange, disabled, min, error }) {
   );
 }
 
-
-function RadioPill({ checked, label, onSelect, error }) {
+function RadioPill({ checked, label, onSelect, error, disabled }) {
   return (
     <button
       type="button"
       onClick={onSelect}
+      disabled={disabled}
       className={[
         "group flex w-full items-center justify-between gap-3 rounded-2xl border px-4 py-3",
         "transition-all duration-200 ease-in-out",
-        "cursor-pointer",
+        disabled ? "opacity-60 cursor-not-allowed" : "cursor-pointer",
         THEME.focusRing,
         error
           ? "border-red-500/70 bg-red-500/5"
@@ -199,7 +226,11 @@ function RadioPill({ checked, label, onSelect, error }) {
             ].join(" ")}
           />
         </span>
-        <div className={["text-sm sm:text-base font-medium", THEME.textSub].join(" ")}>
+        <div
+          className={["text-sm sm:text-base font-medium", THEME.textSub].join(
+            " "
+          )}
+        >
           {label}
         </div>
       </div>
@@ -216,7 +247,7 @@ function RadioPill({ checked, label, onSelect, error }) {
   );
 }
 
-function CheckboxItem({ checked, disabled, label, onToggle, error }) {
+function CheckboxItem({ checked, disabled, label, onToggle }) {
   return (
     <button
       type="button"
@@ -225,16 +256,20 @@ function CheckboxItem({ checked, disabled, label, onToggle, error }) {
       className={[
         "group flex w-full items-center gap-3 rounded-xl border px-3 py-2 text-left",
         "transition-all duration-200 ease-in-out",
-        disabled ? "opacity-60 cursor-not-allowed" : "cursor-pointer hover:bg-black/30",
+        disabled
+          ? "opacity-60 cursor-not-allowed"
+          : "cursor-pointer hover:bg-black/30",
         THEME.focusRing,
-        error ? "border-red-500/70 bg-red-500/5" : "border-zinc-700/60 bg-black/20",
+        "border-zinc-700/60 bg-black/20",
       ].join(" ")}
     >
       <span
         className={[
           "flex min-h-5 min-w-5 items-center justify-center rounded-md border",
           "transition-all duration-200 ease-in-out",
-          checked ? "border-white/40 bg-white/10" : "border-white/15 bg-black/30",
+          checked
+            ? "border-white/40 bg-white/10"
+            : "border-white/15 bg-black/30",
         ].join(" ")}
         aria-hidden="true"
       >
@@ -251,9 +286,7 @@ function CheckboxItem({ checked, disabled, label, onToggle, error }) {
   );
 }
 
-
 export default function Step4Plan({
-  // Plan
   durationHours,
   setDurationHours,
   numberCleanings,
@@ -265,7 +298,6 @@ export default function Step4Plan({
   renewOptions,
   onChangeNumberCleanings,
 
-  // Schedule + extras
   cleaningLabels,
   scheduleDates,
   setScheduleDates,
@@ -276,6 +308,9 @@ export default function Step4Plan({
   extrasCheckboxOptions,
 
   // ✅ NEW
+  planLockedAll,
+  origPlanN,
+  origPlanDates,
   touchedNext,
 }) {
   function setDateAt_(idx, value) {
@@ -299,10 +334,14 @@ export default function Step4Plan({
 
     setExtrasByCleaning((prev) => {
       const next = { ...(prev || {}) };
-      const current = Array.isArray(next[cleaningKey]) ? [...next[cleaningKey]] : [];
+      const current = Array.isArray(next[cleaningKey])
+        ? [...next[cleaningKey]]
+        : [];
 
       const has = current.includes(extraName);
-      let updated = has ? current.filter((x) => x !== extraName) : [...current, extraName];
+      let updated = has
+        ? current.filter((x) => x !== extraName)
+        : [...current, extraName];
 
       const nothing = "Nothing";
       if (extraName === nothing && !has) {
@@ -330,37 +369,65 @@ export default function Step4Plan({
   }
 
   const n = Number(numberCleanings || 0);
-  const minDate = todayISO_();
+  const minDate = todayISOInArgentina_();
 
-  // ✅ Required errors (only when Next clicked)
   const showDurationError = !!touchedNext && !durationHours;
   const showNumCleaningsError = !!touchedNext && !numberCleanings;
   const showAutoRenewError =
     !!touchedNext && (!autoRenew || !renewOptions.includes(autoRenew));
 
-  // ✅ Schedule section errors (per cleaning)
-  let scheduleHasAnyError = false;
-  const perCleaningErrors = cleaningLabels.map((label, idx) => {
-    const key = label;
-    const dateVal = scheduleDates?.[idx] || "";
-    const locked = isPastDate_(dateVal);
-    const timeVal = scheduleTimes?.[idx] || "";
-    const selectedExtras = extrasByCleaning?.[key] || [];
+  const perCleaningErrors = useMemo(() => {
+    let scheduleHasAnyError = false;
 
-    // Only validate schedule fields if cleaning exists + not locked
-    const dateErr = !!touchedNext && !locked && !dateVal;
-    const timeErr = !!touchedNext && !locked && !timeVal;
-    const extrasErr =
-      !!touchedNext && !locked && (!Array.isArray(selectedExtras) || selectedExtras.length === 0);
+    const list = cleaningLabels.map((label, idx) => {
+      const key = label;
+      const dateVal = scheduleDates?.[idx] || "";
+      // const locked = planLockedAll || isPastDate_(dateVal); // ✅ lock all OR past date
+      const isEditMode = Number(origPlanN || 0) > 0;
+      const isOriginalCleaning = isEditMode && idx < Number(origPlanN || 0);
 
-    const any = dateErr || timeErr || extrasErr;
-    if (any) scheduleHasAnyError = true;
+      const baseDateForLock = isOriginalCleaning
+        ? origPlanDates?.[idx] || dateVal
+        : dateVal;
 
-    return { locked, dateErr, timeErr, extrasErr, any };
-  });
+      const locked =
+        planLockedAll ||
+        (isOriginalCleaning && isLocked1DayBefore_(baseDateForLock));
+
+      const timeVal = scheduleTimes?.[idx] || "";
+      const selectedExtras = extrasByCleaning?.[key] || [];
+
+      const dateErr = !!touchedNext && !locked && !dateVal;
+      const timeErr = !!touchedNext && !locked && !timeVal;
+      const extrasErr =
+        !!touchedNext &&
+        !locked &&
+        (!Array.isArray(selectedExtras) || selectedExtras.length === 0);
+
+      const any = dateErr || timeErr || extrasErr;
+      if (any) scheduleHasAnyError = true;
+
+      return { locked, dateErr, timeErr, extrasErr, any };
+    });
+
+    return { list, scheduleHasAnyError };
+  }, [
+    cleaningLabels,
+    scheduleDates,
+    scheduleTimes,
+    extrasByCleaning,
+    touchedNext,
+    planLockedAll,
+    origPlanN,
+  ]);
 
   const hasAnyError =
-    showDurationError || showNumCleaningsError || showAutoRenewError || scheduleHasAnyError;
+    showDurationError ||
+    showNumCleaningsError ||
+    showAutoRenewError ||
+    perCleaningErrors.scheduleHasAnyError;
+
+  const disableStep4Fields = !!planLockedAll;
 
   return (
     <div className="space-y-4">
@@ -374,7 +441,18 @@ export default function Step4Plan({
           </div>
         }
       >
-        {/* Plan fields */}
+        {planLockedAll ? (
+          <div className="mb-4 rounded-2xl border border-red-500/40 bg-red-500/10 px-4 py-3 text-sm text-red-200">
+            🔒 This plan is locked because all cleanings have passed. You cannot
+            this plan.
+          </div>
+        ) : origPlanN ? (
+          <div className="mb-4 rounded-2xl border border-white/10 bg-black/20 px-4 py-3 text-sm text-white/75">
+            Note: You cannot reduce number of cleanings below <b>{origPlanN}</b>
+            . If you increase it, old cleanings keep their schedule & extras.
+          </div>
+        ) : null}
+
         <div className="grid gap-4 sm:gap-5">
           <div>
             <FieldLabel>Duration of each cleaning (hours) *</FieldLabel>
@@ -382,6 +460,7 @@ export default function Step4Plan({
               value={durationHours}
               onChange={(e) => setDurationHours(e.target.value)}
               error={showDurationError}
+              disabled={disableStep4Fields}
             >
               <option value="">Select</option>
               {durationOptions.map((h) => (
@@ -397,10 +476,14 @@ export default function Step4Plan({
             <SelectField
               value={numberCleanings}
               onChange={(e) => {
-                setNumberCleanings(e.target.value);
-                if (typeof onChangeNumberCleanings === "function") onChangeNumberCleanings();
+                const val = e.target.value;
+                // ✅ delegate to FormShell strict logic
+                if (typeof onChangeNumberCleanings === "function")
+                  onChangeNumberCleanings(val);
+                else setNumberCleanings(val);
               }}
               error={showNumCleaningsError}
+              disabled={disableStep4Fields}
             >
               <option value="">Select</option>
               {numberCleaningsOptions.map((x) => (
@@ -422,6 +505,7 @@ export default function Step4Plan({
                   label={opt}
                   onSelect={() => setAutoRenew(opt)}
                   error={showAutoRenewError}
+                  disabled={disableStep4Fields}
                 />
               ))}
             </div>
@@ -430,33 +514,55 @@ export default function Step4Plan({
           </div>
         </div>
 
-        {/* Schedule + Extras */}
         {n ? (
           <div
             className={[
               "mt-6 rounded-2xl border p-4 sm:p-5",
               THEME.innerBg,
-              scheduleHasAnyError ? "border-red-500/70 bg-red-500/5" : THEME.innerBorder,
+              perCleaningErrors.scheduleHasAnyError
+                ? "border-red-500/70 bg-red-500/5"
+                : THEME.innerBorder,
             ].join(" ")}
           >
-            <div className={["text-base sm:text-lg font-semibold", THEME.textTitle].join(" ")}>
+            <div
+              className={[
+                "text-base sm:text-lg font-semibold",
+                THEME.textTitle,
+              ].join(" ")}
+            >
               Schedule & extras
             </div>
-            <div className={["mt-1 text-xs sm:text-sm", THEME.textMuted].join(" ")}>
-              If a cleaning date is already in the past, it is locked and cannot be edited.
+            <div
+              className={["mt-1 text-xs sm:text-sm", THEME.textMuted].join(" ")}
+            >
+              Past dates are locked. If the full plan is locked, please add new
+              plan.
             </div>
 
-            {/* ✅ Scroll only this section when too many cleanings */}
             <div className="mt-4 max-h-[65vh] overflow-y-auto pr-1">
               <div className="space-y-4">
                 {cleaningLabels.map((label, idx) => {
-                  const key = label; // "Cleaning 1"
+                  const key = label;
                   const dateVal = scheduleDates?.[idx] || "";
-                  const locked = isPastDate_(dateVal);
-                  const selectedExtras = extrasByCleaning?.[key] || [];
+                  // const locked = planLockedAll || isPastDate_(dateVal);
+                  const isEditMode = Number(origPlanN || 0) > 0;
+                  const isOriginalCleaning =
+                    isEditMode && idx < Number(origPlanN || 0);
 
-                  const errs = perCleaningErrors[idx] || {};
-                  const cardBorder = errs.any ? "border-red-500/70 bg-red-500/5" : THEME.innerBorder;
+                  const baseDateForLock = isOriginalCleaning
+                    ? origPlanDates?.[idx] || dateVal
+                    : dateVal;
+
+                  const locked =
+                    planLockedAll ||
+                    (isOriginalCleaning &&
+                      isLocked1DayBefore_(baseDateForLock));
+
+                  const selectedExtras = extrasByCleaning?.[key] || [];
+                  const errs = perCleaningErrors.list[idx] || {};
+                  const cardBorder = errs.any
+                    ? "border-red-500/70 bg-red-500/5"
+                    : THEME.innerBorder;
 
                   return (
                     <div
@@ -470,11 +576,16 @@ export default function Step4Plan({
                     >
                       <div className="flex items-center justify-between gap-3">
                         <div className="min-w-0">
-                          <div className={["text-base sm:text-lg font-semibold", THEME.textTitle].join(" ")}>
+                          <div
+                            className={[
+                              "text-base sm:text-lg font-semibold",
+                              THEME.textTitle,
+                            ].join(" ")}
+                          >
                             {label}{" "}
                             {locked ? (
                               <span className="ml-2 text-xs sm:text-sm text-zinc-400">
-                                (Locked - past date)
+                                (Locked)
                               </span>
                             ) : null}
                           </div>
@@ -497,7 +608,6 @@ export default function Step4Plan({
                         </button>
                       </div>
 
-                      {/* Date + Time */}
                       <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2">
                         <div>
                           <FieldLabel>Date *</FieldLabel>
@@ -523,9 +633,13 @@ export default function Step4Plan({
                         </div>
                       </div>
 
-                      {/* Extras */}
                       <div className="mt-5">
-                        <div className={["text-sm sm:text-base font-semibold", THEME.textSub].join(" ")}>
+                        <div
+                          className={[
+                            "text-sm sm:text-base font-semibold",
+                            THEME.textSub,
+                          ].join(" ")}
+                        >
                           Extras (select any) *
                         </div>
 
@@ -539,7 +653,6 @@ export default function Step4Plan({
                                 disabled={locked}
                                 label={opt}
                                 onToggle={() => toggleExtra_(key, opt, locked)}
-                                error={false}
                               />
                             );
                           })}
@@ -547,7 +660,7 @@ export default function Step4Plan({
 
                         <FieldError
                           show={errs.extrasErr}
-                          message='Select at least one option (choose “Nothing” if no extras).'
+                          message="Select at least one option (choose “Nothing” if no extras)."
                         />
                       </div>
                     </div>
@@ -555,7 +668,11 @@ export default function Step4Plan({
                 })}
               </div>
 
-              <div className={["mt-4 text-xs sm:text-sm", THEME.textMuted].join(" ")}>
+              <div
+                className={["mt-4 text-xs sm:text-sm", THEME.textMuted].join(
+                  " "
+                )}
+              >
                 Tip: This section scrolls when you have many cleanings.
               </div>
             </div>
