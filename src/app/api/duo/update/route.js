@@ -1,11 +1,3 @@
-// ✅ FILE: app/api/duo/update/route.js
-// ✅ SAFE VERSION – header-based, JSON-safe, future-proof
-// ✅ Step 4 rules:
-// 1) Cannot reduce "Number of Cleanings" below existing value
-// 2) If ALL cleanings have passed (Argentina timezone), plan is LOCKED and Step 4 cannot be edited
-// 3) If user increases cleanings in plan_full, past/locked cleanings are preserved; future cleanings can be updated
-// ❌ No other flow changed
-
 import { NextResponse } from "next/server";
 import { getSheetsClient } from "@/lib/googleSheet";
 import { randomUUID } from "crypto";
@@ -13,11 +5,6 @@ import { randomUUID } from "crypto";
 export const runtime = "nodejs";
 const SHEET = "Submissions";
 
-/**
- * ✅ Strong normalize
- * - Handles hidden unicode chars
- * - Must MATCH submit API normalization
- */
 function norm(s) {
   return String(s || "")
     .replace(/[\uFEFF\u200B\u200C\u200D\u00A0]/g, " ")
@@ -25,7 +12,6 @@ function norm(s) {
     .toLowerCase();
 }
 
-/** Convert column index → A1 letter (0 → A) */
 function colToA1_(colIndex) {
   let n = colIndex + 1;
   let s = "";
@@ -37,12 +23,10 @@ function colToA1_(colIndex) {
   return s;
 }
 
-/** per-cleaning id */
 function genCleaningId() {
   return `CLN-${randomUUID()}`;
 }
 
-/** Safe JSON parse */
 function safeParseJson_(v, fallback) {
   try {
     if (!v) return fallback;
@@ -53,7 +37,6 @@ function safeParseJson_(v, fallback) {
   }
 }
 
-// ✅ YYYY-MM-DD in Argentina timezone (stable for Argentina client)
 function todayISOInArgentina_() {
   const fmt = new Intl.DateTimeFormat("en-CA", {
     timeZone: "America/Argentina/Buenos_Aires",
@@ -61,7 +44,7 @@ function todayISOInArgentina_() {
     month: "2-digit",
     day: "2-digit",
   });
-  return fmt.format(new Date()); // "YYYY-MM-DD"
+  return fmt.format(new Date());
 }
 
 function isPastDate_(yyyyMmDd) {
@@ -89,13 +72,9 @@ function normalizeExtrasObj_(obj) {
   const src = obj && typeof obj === "object" ? obj : {};
   Object.keys(src).forEach((k) => {
     const v = src[k];
-    if (Array.isArray(v)) {
-      out[k] = v.map((x) => String(x || "").trim()).filter(Boolean);
-    } else if (typeof v === "string" && v.trim()) {
-      out[k] = [v.trim()];
-    } else {
-      out[k] = [];
-    }
+    if (Array.isArray(v)) out[k] = v.map((x) => String(x || "").trim()).filter(Boolean);
+    else if (typeof v === "string" && v.trim()) out[k] = [v.trim()];
+    else out[k] = [];
   });
   return out;
 }
@@ -107,11 +86,6 @@ function allCleaningsPassed_(datesArr, n) {
   return take.every((d) => String(d || "").trim() && String(d).trim() < today);
 }
 
-/**
- * ✅ Sync cleaning objects by INDEX
- * - Preserves eventId & duoId
- * - Adds new objects if increased
- */
 function syncCleaningObjects_(existingArr, targetN) {
   const n = Math.max(0, Math.min(12, Number(targetN || 0) || 0));
   const prev = Array.isArray(existingArr) ? existingArr : [];
@@ -122,8 +96,7 @@ function syncCleaningObjects_(existingArr, targetN) {
     if (old && typeof old === "object") {
       next.push({
         cleaningId:
-          String(old.cleaningId || old.cleaningID || old.id || "") ||
-          genCleaningId(),
+          String(old.cleaningId || old.cleaningID || old.id || "") || genCleaningId(),
         eventId: String(old.eventId || ""),
         duoId: String(old.duoId || ""),
       });
@@ -132,6 +105,92 @@ function syncCleaningObjects_(existingArr, targetN) {
     }
   }
   return next;
+}
+
+function toNumber_(v) {
+  const raw = String(v ?? "").trim();
+  if (!raw) return 0;
+  const cleaned = raw.replace(/[^\d.-]/g, "");
+  const n = Number(cleaned);
+  return Number.isFinite(n) ? n : 0;
+}
+
+async function safeReadSheet_(sheets, spreadsheetId, rangeA1) {
+  try {
+    const res = await sheets.spreadsheets.values.get({ spreadsheetId, range: rangeA1 });
+    return res.data.values || [];
+  } catch {
+    return [];
+  }
+}
+
+async function loadMobilityByCity_(sheets, spreadsheetId) {
+  const values = await safeReadSheet_(sheets, spreadsheetId, `Mobility Costs!A:B`);
+  const map = {};
+  (values || []).forEach((row) => {
+    const city = String(row?.[0] || "").trim();
+    const cost = toNumber_(row?.[1]);
+    if (!city) return;
+    map[city] = cost;
+  });
+  return map;
+}
+
+async function loadPlanPriceMap_(sheets, spreadsheetId) {
+  const values = await safeReadSheet_(sheets, spreadsheetId, `Plan Prices!A1:Z`);
+  if (!values.length) return {};
+  const headers = (values[0] || []).map(norm);
+
+  const idxDur = headers.indexOf(norm("DurationHours"));
+  const idxN = headers.indexOf(norm("NumberOfCleanings"));
+  const idxPrice = headers.indexOf(norm("PlanPrice"));
+  if (idxDur < 0 || idxN < 0 || idxPrice < 0) return {};
+
+  const map = {};
+  values.slice(1).forEach((r) => {
+    const dur = String(r[idxDur] || "").trim();
+    const n = String(r[idxN] || "").trim();
+    const price = toNumber_(r[idxPrice]);
+    if (!dur || !n) return;
+    map[`${dur}|${n}`] = price;
+  });
+  return map;
+}
+
+async function loadExtraPriceMap_(sheets, spreadsheetId) {
+  const values = await safeReadSheet_(sheets, spreadsheetId, `Extra prices!A1:Z`);
+  if (!values.length) return {};
+  const headers = (values[0] || []).map(norm);
+
+  const idxName = headers.indexOf(norm("ExtraName"));
+  const idxPrice = headers.indexOf(norm("ExtraPrice"));
+  if (idxName < 0 || idxPrice < 0) return {};
+
+  const map = {};
+  values.slice(1).forEach((r) => {
+    const name = String(r[idxName] || "").trim();
+    const price = toNumber_(r[idxPrice]);
+    if (!name) return;
+    map[name] = price;
+  });
+  return map;
+}
+
+function sumExtrasTotal_(extrasByCleaning, extraPriceByName) {
+  const obj = extrasByCleaning && typeof extrasByCleaning === "object" ? extrasByCleaning : {};
+  let total = 0;
+
+  Object.keys(obj).forEach((k) => {
+    const arr = Array.isArray(obj[k]) ? obj[k] : [];
+    arr.forEach((name) => {
+      const nm = String(name || "").trim();
+      if (!nm) return;
+      if (nm.toLowerCase() === "nothing") return;
+      total += toNumber_(extraPriceByName[nm] ?? 0);
+    });
+  });
+
+  return total;
 }
 
 export async function POST(req) {
@@ -143,10 +202,7 @@ export async function POST(req) {
     const payload = body.payload || {};
 
     if (!id) {
-      return NextResponse.json(
-        { ok: false, error: "ID is required" },
-        { status: 400 }
-      );
+      return NextResponse.json({ ok: false, error: "ID is required" }, { status: 400 });
     }
 
     const sheets = getSheetsClient();
@@ -172,7 +228,6 @@ export async function POST(req) {
     const col = (name) => headers.indexOf(norm(name));
     const updates = [];
 
-    // ✅ Existing values needed for rules
     const numCleanCol = col("Number of Cleanings");
     const scheduleDateCol = col("Schedule Date");
     const scheduleTimeCol = col("Schedule Time");
@@ -235,7 +290,7 @@ export async function POST(req) {
       );
     }
 
-    // ✅ PLAN FULL (Step 4) — STRICT RULES + PRESERVE ONLY PAST/LOCKED CLEANINGS
+    // ✅ PLAN FULL
     if (updateMode === "plan_full") {
       if (planIsLockedAll) {
         return NextResponse.json(
@@ -245,8 +300,6 @@ export async function POST(req) {
       }
 
       const targetN = Number(payload.plan?.numberCleanings || 0) || 0;
-
-      // ✅ No-reduce rule
       if (existingN && targetN < existingN) {
         return NextResponse.json(
           { ok: false, error: `You cannot reduce number of cleanings below ${existingN}.` },
@@ -257,10 +310,6 @@ export async function POST(req) {
       const incomingDatesArr = splitCSV_(payload.schedule?.date || "");
       const incomingTimesArr = splitCSV_(payload.schedule?.time || "");
 
-      // ✅ IMPORTANT FIX:
-      // - past (locked) cleanings keep old schedule
-      // - future cleanings (even if within existingN) can be updated from payload
-      // - new cleanings take payload
       const mergedDates = [];
       const mergedTimes = [];
 
@@ -284,10 +333,7 @@ export async function POST(req) {
         }
       }
 
-      // ✅ Merge extras: preserve extras ONLY for past (locked) existing cleanings
-      const existingExtrasObj = normalizeExtrasObj_(
-        safeParseJson_(existingRow[extrasCol] || "", {})
-      );
+      const existingExtrasObj = normalizeExtrasObj_(safeParseJson_(existingRow[extrasCol] || "", {}));
       const incomingExtrasObj = normalizeExtrasObj_(payload.schedule?.extras || {});
 
       const mergedExtras = {};
@@ -298,7 +344,6 @@ export async function POST(req) {
           if (isPastDate_(oldD)) {
             mergedExtras[key] = existingExtrasObj[key] || [];
           } else {
-            // allow update for future cleanings
             mergedExtras[key] = incomingExtrasObj[key] || existingExtrasObj[key] || [];
           }
         } else {
@@ -327,20 +372,76 @@ export async function POST(req) {
       );
     }
 
-    // ✅ CLEANINGS (JSON) sync — only plan_full/all
+    // ✅ CLEANINGS JSON sync
     const cleaningCol = col("Cleanings (JSON)");
     const shouldSync = updateMode === "plan_full" || updateMode === "all";
-
     if (cleaningCol >= 0 && numCleanCol >= 0 && shouldSync) {
       const targetN = payload.plan?.numberCleanings ?? existingRow[numCleanCol] ?? "";
       const existingJson = existingRow[cleaningCol] || "";
       const existingArr = safeParseJson_(existingJson, []);
       const synced = syncCleaningObjects_(existingArr, targetN);
-
       updates.push({ col: cleaningCol, val: JSON.stringify(synced) });
     }
 
-    // ✅ Build batch update ranges
+    // ✅ PRICE RECALC (simple + safe)
+    // We recalc when any relevant section changes:
+    const shouldRecalcPrice =
+      updateMode === "all" ||
+      updateMode === "address" ||
+      updateMode === "plan" ||
+      updateMode === "schedule" ||
+      updateMode === "plan_full";
+
+    if (shouldRecalcPrice) {
+      const [mobilityByCity, planPriceMap, extraPriceByName] = await Promise.all([
+        loadMobilityByCity_(sheets, spreadsheetId),
+        loadPlanPriceMap_(sheets, spreadsheetId),
+        loadExtraPriceMap_(sheets, spreadsheetId),
+      ]);
+
+      // Determine FINAL values (use payload override if provided, else existing row)
+      const getExisting_ = (headerName) => {
+        const c = col(headerName);
+        if (c < 0) return "";
+        return existingRow[c] ?? "";
+      };
+
+      const finalCity =
+        String(payload.address?.city ?? "").trim() || String(getExisting_("City/Town") || "").trim();
+
+      const finalDuration =
+        String(payload.plan?.durationHours ?? "").trim() || String(getExisting_("Duration Hours") || "").trim();
+
+      const finalN =
+        toNumber_(payload.plan?.numberCleanings ?? "") || toNumber_(getExisting_("Number of Cleanings"));
+
+      // extras: if plan_full or schedule or all, use payload.schedule.extras (or merged in plan_full update above)
+      // easiest: prefer the value we are writing into "Extras (JSON)" if present, else existing
+      let finalExtrasObj = {};
+      const pendingExtrasUpdate = updates.find((u) => u.col === col("Extras (JSON)"));
+      if (pendingExtrasUpdate) {
+        finalExtrasObj = safeParseJson_(pendingExtrasUpdate.val, {});
+      } else {
+        finalExtrasObj = safeParseJson_(getExisting_("Extras (JSON)"), {});
+      }
+
+      const mobilityPerCleaning = toNumber_(mobilityByCity[finalCity] ?? 0);
+      const mobilityTotal = mobilityPerCleaning * finalN;
+
+      const planPrice = toNumber_(planPriceMap[`${finalDuration}|${finalN}`] ?? 0);
+      const extrasTotal = sumExtrasTotal_(finalExtrasObj, extraPriceByName);
+      const totalPrice = planPrice + mobilityTotal + extrasTotal;
+
+      updates.push(
+        { col: col("Mobility Cost (per cleaning)"), val: mobilityPerCleaning },
+        { col: col("Mobility Cost (total)"), val: mobilityTotal },
+        { col: col("Plan Price"), val: planPrice },
+        { col: col("Extras Price (total)"), val: extrasTotal },
+        { col: col("Total Price"), val: totalPrice }
+      );
+    }
+
+    // batch update
     const data = updates
       .filter((u) => u.col >= 0)
       .map((u) => ({
@@ -355,9 +456,6 @@ export async function POST(req) {
 
     return NextResponse.json({ ok: true });
   } catch (e) {
-    return NextResponse.json(
-      { ok: false, error: e.message || "Update failed" },
-      { status: 500 }
-    );
+    return NextResponse.json({ ok: false, error: e.message || "Update failed" }, { status: 500 });
   }
 }
