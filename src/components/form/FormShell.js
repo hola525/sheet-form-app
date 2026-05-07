@@ -164,6 +164,10 @@ export default function FormShell() {
     extrasCols: [],
     citiesByProvince: {},
     serviceTypes: [],
+    // ✅ new
+    mobilityCostByCity: {},
+    planPriceByDurationAndN: {},
+    extraPriceByName: {},
   });
   // ✅ YYYY-MM-DD in Argentina timezone (stable for your Argentina client)
   function todayISOInArgentina_() {
@@ -201,6 +205,9 @@ export default function FormShell() {
             extrasCols: data.extrasCols || [],
             citiesByProvince: data.citiesByProvince || {},
             serviceTypes: data.serviceTypes || [],
+            mobilityCostByCity: data.mobilityCostByCity || {},
+            planPriceByDurationAndN: data.planPriceByDurationAndN || {},
+            extraPriceByName: data.extraPriceByName || {},
           });
         }
       } catch (e) {}
@@ -820,7 +827,46 @@ export default function FormShell() {
     setOrigPlanDates([]);
     setPlanLockedAll(false);
   }
-
+  function money(n) {
+    const x = Number(n || 0) || 0;
+    return x.toLocaleString("en-US");
+  }
+  
+  function getPlanPrice_() {
+    if (!durationHours || !numberCleanings) return 0;
+    const key = `${durationHours}|${numberCleanings}`;
+    return Number(cfg.planPriceByDurationAndN?.[key] || 0) || 0;
+  }
+  
+  function getMobilityPerClean_() {
+    if (!city) return 0;
+    return Number(cfg.mobilityCostByCity?.[city] || 0) || 0;
+  }
+  
+  function getExtrasTotal_() {
+    // extrasByCleaning: { "Cleaning 1": ["KIT BASICO", ...] }
+    let sum = 0;
+    Object.keys(extrasByCleaning || {}).forEach((k) => {
+      const arr = extrasByCleaning?.[k] || [];
+      arr.forEach((name) => {
+        if (String(name).trim() === "Nothing") return;
+        sum += Number(cfg.extraPriceByName?.[name] || 0) || 0;
+      });
+    });
+    return sum;
+  }
+  
+  const priceSummary = useMemo(() => {
+    const plan = getPlanPrice_();
+    const mobPer = getMobilityPerClean_();
+    const n = Number(numberCleanings || 0) || 0;
+    const mobility = mobPer * n;
+    const extras = getExtrasTotal_();
+    const total = plan + mobility + extras;
+  
+    return { plan, mobPer, mobility, extras, total };
+  }, [cfg, durationHours, numberCleanings, city, extrasByCleaning]);
+  
   const overlayLabel = saving
     ? "Saving your data..."
     : plansLoading
@@ -930,6 +976,9 @@ export default function FormShell() {
               origPlanN={origPlanN}
               touchedNext={touchedNext}
               origPlanDates={origPlanDates}
+
+              priceSummary={priceSummary}
+              money={money}
             />
           )}
 

@@ -312,6 +312,8 @@ export default function Step4Plan({
   origPlanN,
   origPlanDates,
   touchedNext,
+  priceSummary,
+  money,
 }) {
   function setDateAt_(idx, value) {
     setScheduleDates((prev) => {
@@ -452,7 +454,7 @@ export default function Step4Plan({
             . If you increase it, old cleanings keep their schedule & extras.
           </div>
         ) : null}
-
+      
         <div className="grid gap-4 sm:gap-5">
           <div>
             <FieldLabel>Duration of each cleaning (hours) *</FieldLabel>
@@ -674,6 +676,31 @@ export default function Step4Plan({
                 )}
               >
                 Tip: This section scrolls when you have many cleanings.
+              </div>
+            </div>
+          </div>
+        ) : null}
+          {priceSummary ? (
+          <div className="mb-4 mt-4 rounded-2xl border border-white/10 bg-black/20 px-4 py-3 text-sm text-white/80">
+            <div className="font-semibold mb-2">Estimated price</div>
+            <div className="space-y-1">
+              <div>
+                Plan price: <b>${money(priceSummary.plan)}</b>
+              </div>
+              <div>
+                Mobility: <b>${money(priceSummary.mobility)}</b>
+                {priceSummary.mobPer ? (
+                  <span className="text-white/60">
+                    {" "}
+                    ( ${money(priceSummary.mobPer)} per cleaning )
+                  </span>
+                ) : null}
+              </div>
+              <div>
+                Extras total: <b>${money(priceSummary.extras)}</b>
+              </div>
+              <div className="pt-2 border-t border-white/10">
+                Total: <b>${money(priceSummary.total)}</b>
               </div>
             </div>
           </div>
